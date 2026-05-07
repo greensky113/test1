@@ -67,6 +67,7 @@
         .log-entry.success { color: #52c41a; }
         .log-entry.error { color: #ff4d4f; }
         .log-entry.info { color: #1890ff; }
+        .log-entry.warn { color: #ffd700; }
         .empty-state { text-align: center; padding: 60px 20px; color: #999; }
         .empty-state-icon { font-size: 64px; margin-bottom: 16px; opacity: 0.5; }
         .stat-cards { display: flex; gap: 20px; margin-bottom: 24px; }
@@ -462,27 +463,33 @@
                     }
 
                     if (!matchedFolder) {
+                        this.log('warn', `未找到图片文件夹: ${folderNameFromData}`);
                         documentXml = documentXml.split(placeholder).join(`[图片: ${folderNameFromData || '未找到'}]`);
                         continue;
                     }
 
                     const images = this.imageFolders[matchedFolder];
-                    let imageXml = '';
+                    this.log('info', `找到文件夹 ${matchedFolder}，包含 ${images.length} 张图片`);
+                    
+                    let allImageXml = '';
 
-                    for (const image of images) {
-                        const imageFileName = `image${Date.now()}-${Math.random().toString(36).substr(2, 9)}.${image.extension}`;
+                    for (let imgIdx = 0; imgIdx < images.length; imgIdx++) {
+                        const image = images[imgIdx];
+                        const imageFileName = `image_${index}_${imgIdx}_${Date.now()}.${image.extension}`;
                         relIdCounter++;
                         const relId = `rId${relIdCounter}`;
 
                         const imageBase64 = image.base64;
                         zip.file(`word/media/${imageFileName}`, imageBase64, { base64: true });
 
-                        relsXml += `<Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${imageFileName}"/>`;
+                        const imgRelXml = `<Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${imageFileName}"/>`;
+                        relsXml = relsXml.replace('</Relationships>', `${imgRelXml}</Relationships>`);
 
-                        imageXml += `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><wp:extent cx="3810000" cy="2857500"/><wp:docPr id="${relIdCounter}" name="Picture ${relIdCounter}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="${relIdCounter}" name="Picture ${relIdCounter}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="3810000" cy="2857500"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+                        const drawingXml = this.createDrawingXml(relId, imageFileName, image.extension);
+                        allImageXml += drawingXml;
                     }
 
-                    documentXml = documentXml.split(placeholder).join(imageXml);
+                    documentXml = documentXml.split(placeholder).join(allImageXml);
                 }
 
                 zip.file('word/document.xml', documentXml);
@@ -491,10 +498,28 @@
                 return await zip.generateAsync({ type: 'blob' });
             },
 
+            createDrawingXml(relId, imageFileName, extension) {
+                const extentCx = 2160000;
+                const extentCy = 2160000;
+                const picId = relId.replace('rId', '');
+                
+                const extensionLower = extension.toLowerCase();
+                let mimeType = 'image/png';
+                if (extensionLower === 'jpg' || extensionLower === 'jpeg') {
+                    mimeType = 'image/jpeg';
+                } else if (extensionLower === 'gif') {
+                    mimeType = 'image/gif';
+                } else if (extensionLower === 'bmp') {
+                    mimeType = 'image/bmp';
+                }
+
+                return `<w:r xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:drawing><wp:inline xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${extentCx}" cy="${extentCy}"/><wp:docPr id="${picId}" name="Picture ${picId}" descr="${imageFileName}"/><wp:cNvGraphicFramePr><a:graphicFrameLocks xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" noChangeAspect="1"/></wp:cNvGraphicFramePr><a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${picId}" name="${imageFileName}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${relId}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${extentCx}" cy="${extentCy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r>`;
+            },
+
             extractMaxRelId(relsXml) {
-                const matches = relsXml.match(/rId(\d+)/g);
+                const matches = relsXml.match(/Id="rId(\d+)"/g);
                 if (!matches) return 10;
-                return Math.max(...matches.map(m => parseInt(m.replace('rId', ''))));
+                return Math.max(...matches.map(m => parseInt(m.replace(/Id="rId/, '').replace(/"/, ''))));
             },
 
             renderDownloadLinks() {
@@ -527,6 +552,7 @@
 
             log(type, message) {
                 const logContainer = document.getElementById('logContainer');
+                if (!logContainer) return;
                 const entry = document.createElement('div');
                 entry.className = `log-entry ${type}`;
                 entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
