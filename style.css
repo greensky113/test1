@@ -1,0 +1,230 @@
+/* 全局样式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Arial', sans-serif;
+    background-color: #f0f4f8;
+    color: #333;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 800px;
+    margin: 20px auto;
+    padding: 20px;
+    background-color: white;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+/* 标题样式 */
+h1 {
+    text-align: center;
+    color: #1976D2;
+    margin-bottom: 30px;
+    font-size: 2rem;
+}
+
+/* 搜索区域 */
+.search-container {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 30px;
+}
+
+#cityInput {
+    padding: 12px;
+    font-size: 16px;
+    border: 2px solid #1976D2;
+    border-radius: 5px 0 0 5px;
+    width: 300px;
+    max-width: 100%;
+}
+
+#searchBtn {
+    padding: 12px 20px;
+    font-size: 16px;
+    background-color: #1976D2;
+    color: white;
+    border: none;
+    border-radius: 0 5px 5px 0;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+#searchBtn:hover {
+    background-color: #1565C0;
+}
+
+/* 天气信息区域 */
+.weather-container {
+    display: flex;
+    flex-direction: column;
+    gap: 30px;
+}
+
+.current-weather {
+    background-color: #E3F2FD;
+    padding: 25px;
+    border-radius: 10px;
+    text-align: center;
+}
+
+#cityName {
+    color: #1976D2;
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+}
+
+.weather-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.temperature {
+    font-size: 3rem;
+    font-weight: bold;
+    color: #1976D2;
+}
+
+.weather-condition {
+    font-size: 1.2rem;
+    color: #555;
+}
+
+.details {
+    display: flex;
+    gap: 30px;
+    margin-top: 15px;
+}
+
+.detail-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.label {
+    font-size: 0.9rem;
+    color: #777;
+    margin-bottom: 5px;
+}
+
+/* 天气预报区域 */
+.forecast-container {
+    background-color: #E3F2FD;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.forecast-container h3 {
+    text-align: center;
+    color: #1976D2;
+    margin-bottom: 20px;
+}
+
+.forecast-cards {
+    display: flex;
+    justify-content: space-between;
+    gap: 15px;
+}
+
+.forecast-card {
+    flex: 1;
+    background-color: white;
+    padding: 15px;
+    border-radius: 8px;
+    text-align: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.forecast-date {
+    font-weight: bold;
+    color: #1976D2;
+    margin-bottom: 10px;
+}
+
+.forecast-temp {
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.forecast-condition {
+    font-size: 0.9rem;
+    color: #555;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .container {
+        margin: 10px;
+        padding: 15px;
+    }
+    
+    h1 {
+        font-size: 1.5rem;
+    }
+    
+    #cityInput {
+        width: 200px;
+    }
+    
+    .temperature {
+        font-size: 2.5rem;
+    }
+    
+    .forecast-cards {
+        flex-direction: column;
+    }
+    
+    .forecast-card {
+        flex-direction: row;
+        justify-content: space-around;
+        align-items: center;
+    }
+    
+    .forecast-date {
+        flex: 1;
+    }
+    
+    .forecast-temp {
+        flex: 1;
+    }
+    
+    .forecast-condition {
+        flex: 1;
+    }
+}
+
+@media (max-width: 480px) {
+    .search-container {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    #cityInput {
+        width: 100%;
+        border-radius: 5px;
+    }
+    
+    #searchBtn {
+        border-radius: 5px;
+    }
+    
+    .details {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .forecast-card {
+        flex-direction: column;
+        gap: 5px;
+    }
+}

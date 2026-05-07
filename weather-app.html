@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>天气查询工具</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>天气查询工具</h1>
+        
+        <!-- 搜索区域 -->
+        <div class="search-container">
+            <input type="text" id="cityInput" placeholder="输入城市名称...">
+            <button id="searchBtn">搜索</button>
+        </div>
+        
+        <!-- 天气信息区域 -->
+        <div class="weather-container">
+            <div id="currentWeather" class="current-weather">
+                <h2 id="cityName">--</h2>
+                <div class="weather-info">
+                    <div class="temperature">--°C</div>
+                    <div class="weather-condition">--</div>
+                    <div class="details">
+                        <div class="detail-item">
+                            <span class="label">湿度:</span>
+                            <span id="humidity">--</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">风力:</span>
+                            <span id="wind">--</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 天气预报区域 -->
+            <div class="forecast-container">
+                <h3>未来3天预报</h3>
+                <div class="forecast-cards">
+                    <div class="forecast-card" id="day1">
+                        <div class="forecast-date">--</div>
+                        <div class="forecast-temp">--°C</div>
+                        <div class="forecast-condition">--</div>
+                    </div>
+                    <div class="forecast-card" id="day2">
+                        <div class="forecast-date">--</div>
+                        <div class="forecast-temp">--°C</div>
+                        <div class="forecast-condition">--</div>
+                    </div>
+                    <div class="forecast-card" id="day3">
+                        <div class="forecast-date">--</div>
+                        <div class="forecast-temp">--°C</div>
+                        <div class="forecast-condition">--</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>

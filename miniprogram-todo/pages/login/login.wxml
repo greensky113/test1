@@ -1,0 +1,22 @@
+<view class="login-container">
+  <view class="logo-section">
+    <view class="logo-icon">✓</view>
+    <text class="app-name">待办清单</text>
+    <text class="app-desc">高效管理每一件事</text>
+  </view>
+
+  <view class="login-section">
+    <button 
+      class="login-btn" 
+      open-type="getUserInfo" 
+      bindgetuserinfo="handleLogin"
+      loading="{{loading}}"
+    >
+      <view class="btn-content">
+        <image class="wechat-icon" src="/images/wechat.png" mode="aspectFit"></image>
+        <text>微信一键登录</text>
+      </view>
+    </button>
+    <text class="login-tip">登录即表示同意《用户协议》和《隐私政策》</text>
+  </view>
+</view>

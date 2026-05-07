@@ -1,0 +1,84 @@
+<view class="container">
+  <view class="header">
+    <view class="user-info" wx:if="{{userInfo}}">
+      <image class="avatar" src="{{userInfo.avatarUrl}}" mode="aspectFill"></image>
+      <text class="username">{{userInfo.nickName}}</text>
+    </view>
+    <view class="stats">
+      <view class="stat-item">
+        <text class="stat-number">{{totalCount}}</text>
+        <text class="stat-label">总计</text>
+      </view>
+      <view class="stat-divider"></view>
+      <view class="stat-item">
+        <text class="stat-number completed-number">{{completedCount}}</text>
+        <text class="stat-label">已完成</text>
+      </view>
+      <view class="stat-divider"></view>
+      <view class="stat-item">
+        <text class="stat-number pending-number">{{pendingCount}}</text>
+        <text class="stat-label">待完成</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="input-section">
+    <input 
+      class="todo-input" 
+      placeholder="添加新任务..." 
+      value="{{inputValue}}"
+      bindinput="handleInput"
+      confirm-type="done"
+      bindconfirm="addTodo"
+    />
+    <button class="add-btn" bindtap="addTodo" disabled="{{!inputValue.trim()}}">
+      <text>+</text>
+    </button>
+  </view>
+
+  <view class="filter-tabs">
+    <view 
+      class="tab-item {{currentFilter === 'all' ? 'active' : ''}}" 
+      bindtap="setFilter" 
+      data-filter="all"
+    >
+      全部
+    </view>
+    <view 
+      class="tab-item {{currentFilter === 'pending' ? 'active' : ''}}" 
+      bindtap="setFilter" 
+      data-filter="pending"
+    >
+      待完成
+    </view>
+    <view 
+      class="tab-item {{currentFilter === 'completed' ? 'active' : ''}}" 
+      bindtap="setFilter" 
+      data-filter="completed"
+    >
+      已完成
+    </view>
+  </view>
+
+  <view class="todo-list" wx:if="{{filteredTodos.length > 0}}">
+    <view 
+      class="todo-item {{item.completed ? 'completed' : ''}}" 
+      wx:for="{{filteredTodos}}" 
+      wx:key="_id"
+    >
+      <view class="checkbox" bindtap="toggleTodo" data-id="{{item._id}}">
+        <view class="check-icon" wx:if="{{item.completed}}">✓</view>
+      </view>
+      <text class="todo-content">{{item.content}}</text>
+      <text class="todo-date">{{item.createTime}}</text>
+      <view class="delete-btn" bindtap="deleteTodo" data-id="{{item._id}}">
+        <text>×</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-state" wx:else>
+    <view class="empty-icon">📝</view>
+    <text class="empty-text">{{emptyText}}</text>
+  </view>
+</view>
