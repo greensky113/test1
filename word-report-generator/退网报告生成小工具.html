@@ -7,6 +7,7 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background-color: #f5f7fa; color: #333; min-height: 100vh; }
@@ -48,6 +49,7 @@
         .data-table tr:hover { background-color: #f5f5f5; }
         .placeholder-tag { background-color: #e6f7ff; color: #1890ff; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-family: monospace; }
         .image-placeholder-tag { background-color: #fff7e6; color: #fa8c16; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-family: monospace; }
+        .excel-placeholder-tag { background-color: #f6ffed; color: #52c41a; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-family: monospace; }
         .preview-section { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 30px; }
         .preview-content { border: 1px solid #e8e8e8; border-radius: 8px; padding: 20px; max-height: 500px; overflow-y: auto; background-color: #fafafa; }
         .action-buttons { display: flex; gap: 16px; justify-content: center; margin-top: 30px; }
@@ -115,6 +117,7 @@
             <div class="stat-card"><div class="stat-icon blue">📁</div><div class="stat-info"><div class="stat-number" id="templateStatus">-</div><div class="stat-label">Word模板</div></div></div>
             <div class="stat-card"><div class="stat-icon green">📊</div><div class="stat-info"><div class="stat-number" id="dataCount">-</div><div class="stat-label">数据记录</div></div></div>
             <div class="stat-card"><div class="stat-icon orange">📂</div><div class="stat-info"><div class="stat-number" id="imageFolders">-</div><div class="stat-label">图片文件夹</div></div></div>
+<div class="stat-card"><div class="stat-icon blue">📈</div><div class="stat-info"><div class="stat-number" id="tableFileStatus">-</div><div class="stat-label">表格文件</div></div></div>
         </div>
 
         <div class="step-container">
@@ -136,6 +139,13 @@
                 <input type="file" id="imageInput" class="file-input" accept=".zip">
                 <div class="file-list" id="imageFileList"></div>
                 <div class="folder-tree" id="folderTree"></div>
+            </div>
+            <div class="step-card" id="step4">
+                <div class="step-header"><div class="step-number">4</div><div class="step-title">上传多小区压缩包（后端模式）</div></div>
+                <div class="upload-area" id="tableUpload"><div class="upload-icon">📦</div><div class="upload-text">点击或拖拽上传多小区压缩包</div><div class="upload-hint">支持 .zip 格式，包含多小区文件夹，每个小区下有 Environment_images、RemovedEquipment_images、excel</div></div>
+                <input type="file" id="tableInput" class="file-input" accept=".zip" multiple>
+                <div class="file-list" id="tableFileList"></div>
+                <div class="folder-tree" id="tableFolderTree"></div>
             </div>
         </div>
 
@@ -192,7 +202,12 @@
             excelHeaders: [],
             imageZipFile: null,
             imageFolders: {},
+            tableZipFile: null,
+            tableFiles: {},
+            communityPackages: [],
             generatedReports: [],
+            useBackendMode: false,
+            backendUrl: 'http://localhost:5000/api',
 
             init() {
                 this.bindEvents();
@@ -200,21 +215,46 @@
             },
 
             bindEvents() {
-                this.setupUpload('templateUpload', 'templateInput', 'templateFileList', this.handleTemplateUpload.bind(this));
-                this.setupUpload('dataUpload', 'dataInput', 'dataFileList', this.handleDataUpload.bind(this));
-                this.setupUpload('imageUpload', 'imageInput', 'imageFileList', this.handleImageUpload.bind(this));
+                this.setupUpload('templateUpload', 'templateInput', 'templateFileList', this.handleTemplateUpload.bind(this), false);
+                this.setupUpload('dataUpload', 'dataInput', 'dataFileList', this.handleDataUpload.bind(this), false);
+                this.setupUpload('imageUpload', 'imageInput', 'imageFileList', this.handleImageUpload.bind(this), false);
+                this.setupUpload('tableUpload', 'tableInput', 'tableFileList', this.handleTableUpload.bind(this), true);
                 document.getElementById('generateBtn').addEventListener('click', this.generateReports.bind(this));
                 document.getElementById('downloadAllBtn').addEventListener('click', this.downloadAllReports.bind(this));
             },
 
-            setupUpload(areaId, inputId, listId, handler) {
+            setupUpload(areaId, inputId, listId, handler, multiple = false) {
                 const area = document.getElementById(areaId);
                 const input = document.getElementById(inputId);
-                area.addEventListener('click', () => input.click());
+                console.log('[DEBUG] setupUpload:', areaId, inputId, 'area:', area, 'input:', input, 'multiple:', multiple);
+                if (!area || !input) {
+                    console.error('[DEBUG] 上传区域或输入框未找到:', areaId, inputId);
+                    return;
+                }
+                area.addEventListener('click', () => { console.log('[DEBUG] 点击上传区域:', areaId); input.click(); });
                 area.addEventListener('dragover', (e) => { e.preventDefault(); area.classList.add('dragover'); });
                 area.addEventListener('dragleave', () => area.classList.remove('dragover'));
-                area.addEventListener('drop', (e) => { e.preventDefault(); area.classList.remove('dragover'); if (e.dataTransfer.files.length > 0) handler(e.dataTransfer.files[0]); });
-                input.addEventListener('change', (e) => { if (e.target.files.length > 0) handler(e.target.files[0]); });
+                area.addEventListener('drop', (e) => { 
+                    e.preventDefault(); 
+                    area.classList.remove('dragover'); 
+                    if (e.dataTransfer.files.length > 0) {
+                        if (multiple) {
+                            handler(Array.from(e.dataTransfer.files));
+                        } else {
+                            handler(e.dataTransfer.files[0]);
+                        }
+                    }
+                });
+                input.addEventListener('change', (e) => { 
+                    console.log('[DEBUG] input change:', inputId, e.target.files.length); 
+                    if (e.target.files.length > 0) {
+                        if (multiple) {
+                            handler(Array.from(e.target.files));
+                        } else {
+                            handler(e.target.files[0]);
+                        }
+                    }
+                });
             },
 
             async handleTemplateUpload(file) {
@@ -264,18 +304,20 @@
                 
                 for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
                     if (!zipEntry.dir) {
-                        const pathParts = relativePath.split('/');
+                        let normalizedPath = relativePath.replace(/^images\/|^image\/|^pictures\/|^photos\//i, '');
+                        const pathParts = normalizedPath.split('/');
                         let folderName, fileName;
                         
-                        if (pathParts.length >= 3) {
-                            folderName = pathParts[1];
-                            fileName = pathParts.slice(2).join('/');
-                        } else if (pathParts.length >= 2) {
+                        if (pathParts.length >= 2) {
                             folderName = pathParts[0];
                             fileName = pathParts.slice(1).join('/');
                         } else {
                             folderName = 'root';
                             fileName = pathParts[0];
+                        }
+                        
+                        if (this.isExcelFile(fileName) || this.isExcelFile(folderName)) {
+                            continue;
                         }
                         
                         if (!this.imageFolders[folderName]) { this.imageFolders[folderName] = []; }
@@ -295,17 +337,146 @@
                 this.showToast(`成功解析 ${folderCount} 个图片文件夹！文件夹列表: ${Object.keys(this.imageFolders).join(', ')}`);
             },
 
+            async handleTableUpload(files) {
+                console.log('[DEBUG] 表格上传开始:', files.length, '个文件');
+                
+                try {
+                    this.tableFiles = {};
+                    this.communityPackages = [];
+                    
+                    for (const file of files) {
+                        console.log('[DEBUG] 处理压缩包:', file.name);
+                        
+                        if (!file.name.endsWith('.zip')) { 
+                            this.showToast('请上传 .zip 格式的压缩包', true); 
+                            continue; 
+                        }
+                        
+                        const arrayBuffer = await file.arrayBuffer();
+                        const zip = await JSZip.loadAsync(arrayBuffer, { checkCRC32: true });
+                        
+                        const processedZip = await this.processCommunityZip(zip, file.name);
+                        if (processedZip) {
+                            this.communityPackages.push(processedZip);
+                        }
+                    }
+                    
+                    console.log('[DEBUG] 解析完成，处理了', this.communityPackages.length, '个小区包');
+                    this.communityPackages.forEach(pkg => {
+                        console.log('[DEBUG]   小区:', pkg.communityName, 'Excel文件:', pkg.excelFiles.length, '环境图片:', pkg.environmentImages.length, '设备图片:', pkg.removedEquipmentImages.length);
+                    });
+                    
+                    this.renderCommunityFolderTree();
+                    this.showFileItem('tableFileList', { name: `已处理 ${this.communityPackages.length} 个小区`, size: '', status: 'success' });
+                    this.updateStats();
+                    this.updateStepStatus(4);
+                    this.showToast(`成功处理 ${this.communityPackages.length} 个小区数据包！`);
+                } catch (error) {
+                    console.error('[DEBUG] 表格上传失败:', error);
+                    this.showToast('表格上传失败: ' + error.message, true);
+                }
+            },
+            
+            async processCommunityZip(zip, zipFileName) {
+                const entries = Object.entries(zip.files);
+                let communityName = zipFileName.replace('.zip', '');
+                let excelFiles = [];
+                let environmentImages = [];
+                let removedEquipmentImages = [];
+                
+                for (const [path, zipEntry] of entries) {
+                    if (zipEntry.dir) continue;
+                    
+                    if (path.includes('excel/') && (path.endsWith('.xlsx') || path.endsWith('.xls'))) {
+                        const fileName = path.split('/').pop();
+                        const fileData = await zipEntry.async('base64');
+                        excelFiles.push({ name: fileName, base64: fileData, extension: fileName.split('.').pop().toLowerCase() });
+                        console.log('[DEBUG] Excel文件:', fileName);
+                    } else if (path.includes('Environment_images/') && this.isImageFile(path)) {
+                        const fileName = path.split('/').pop();
+                        const fileData = await zipEntry.async('base64');
+                        const extension = fileName.split('.').pop().toLowerCase();
+                        environmentImages.push({ name: fileName, base64: fileData, extension: extension });
+                        console.log('[DEBUG] 环境图片:', fileName);
+                    } else if (path.includes('RemovedEquipment_images/') && this.isImageFile(path)) {
+                        const fileName = path.split('/').pop();
+                        const fileData = await zipEntry.async('base64');
+                        const extension = fileName.split('.').pop().toLowerCase();
+                        removedEquipmentImages.push({ name: fileName, base64: fileData, extension: extension });
+                        console.log('[DEBUG] 设备图片:', fileName);
+                    }
+                    
+                    const pathParts = path.split('/');
+                    if (pathParts.length >= 2) {
+                        communityName = pathParts[0];
+                    }
+                }
+                
+                return {
+                    communityName,
+                    zipFileName,
+                    excelFiles,
+                    environmentImages,
+                    removedEquipmentImages
+                };
+            },
+            
+            renderCommunityFolderTree() {
+                const folderTree = document.getElementById('tableFolderTree');
+                if (this.communityPackages.length === 0) { 
+                    folderTree.innerHTML = '<div class="empty-state"><p>暂无小区数据包</p></div>'; 
+                    return; 
+                }
+                folderTree.innerHTML = '';
+                this.communityPackages.forEach(pkg => {
+                    const folderItem = document.createElement('div');
+                    folderItem.className = 'folder-item';
+                    folderItem.innerHTML = `
+                        <span class="folder-icon">�</span>
+                        <span class="folder-name">${pkg.communityName}</span>
+                        <span class="folder-count">${pkg.excelFiles.length}个Excel, ${pkg.environmentImages.length + pkg.removedEquipmentImages.length}张图片</span>
+                    `;
+                    folderTree.appendChild(folderItem);
+                });
+            },
+
+            isExcelFile(filename) {
+                const excelExtensions = ['.xlsx', '.xls'];
+                return excelExtensions.some(ext => filename.toLowerCase().endsWith(ext));
+            },
+
             extractPlaceholders(html) {
                 const placeholders = [];
-                const textRegex = /\{\{([^@][^}]+)\}\}/g;
+                const excelRegex = /\{\{excel:([^}]+)\}\}/g;
+                const textRegex = /\{\{([^@#][^}]+)\}\}/g;
                 const imageRegex = /\{\{@([^}]+)\}\}/g;
+                const tableRegex = /\{\{#([^}]+)\}\}/g;
                 let match;
-                while ((match = textRegex.exec(html)) !== null) {
-                    placeholders.push({ name: match[1].trim(), type: 'text', fullMatch: match[0] });
+                
+                while ((match = excelRegex.exec(html)) !== null) {
+                    placeholders.push({ name: match[1].trim(), type: 'excel', fullMatch: match[0] });
                 }
+                
+                while ((match = textRegex.exec(html)) !== null) {
+                    const name = match[1].trim();
+                    if (name.startsWith('excel:')) {
+                        continue;
+                    }
+                    if (name.includes('附件') || name.includes('表格') || name.includes('表')) {
+                        placeholders.push({ name: name, type: 'excel', fullMatch: match[0] });
+                    } else {
+                        placeholders.push({ name: name, type: 'text', fullMatch: match[0] });
+                    }
+                }
+                
                 while ((match = imageRegex.exec(html)) !== null) {
                     placeholders.push({ name: match[1].trim(), type: 'image', fullMatch: match[0] });
                 }
+                
+                while ((match = tableRegex.exec(html)) !== null) {
+                    placeholders.push({ name: match[1].trim(), type: 'table', fullMatch: match[0] });
+                }
+                
                 return placeholders;
             },
 
@@ -317,8 +488,12 @@
                 this.templatePlaceholders.forEach(p => {
                     if (p.type === 'text') {
                         processedHtml = processedHtml.replace(new RegExp(p.fullMatch.replace(/[{}]/g, '\\$&'), 'g'), `<span class="placeholder-tag">${p.fullMatch}</span>`);
-                    } else {
+                    } else if (p.type === 'image') {
                         processedHtml = processedHtml.replace(new RegExp(p.fullMatch.replace(/[{}]/g, '\\$&'), 'g'), `<span class="image-placeholder-tag">${p.fullMatch}</span>`);
+                    } else if (p.type === 'table') {
+                        processedHtml = processedHtml.replace(new RegExp(p.fullMatch.replace(/[{}]/g, '\\$&'), 'g'), `<span class="table-placeholder-tag">${p.fullMatch}</span>`);
+                    } else if (p.type === 'excel') {
+                        processedHtml = processedHtml.replace(new RegExp(p.fullMatch.replace(/[{}]/g, '\\$&'), 'g'), `<span class="excel-placeholder-tag">${p.fullMatch}</span>`);
                     }
                 });
                 previewContent.innerHTML = processedHtml;
@@ -336,13 +511,34 @@
                 mappingContent.classList.remove('hidden');
                 mappingTableBody.innerHTML = '';
                 this.templatePlaceholders.forEach(p => {
-                    const mappedColumn = this.excelHeaders.find(h => h.toLowerCase().replace(/[_\s]/g, '') === p.name.toLowerCase().replace(/[_\s]/g, ''));
-                    const exampleValue = mappedColumn && this.excelData.length > 0 ? this.excelData[0][mappedColumn] : '-';
+                    let placeholderTagClass = 'placeholder-tag';
+                    let placeholderPrefix = '';
+                    let typeLabel = '📝 文本';
+                    
+                    if (p.type === 'image') {
+                        placeholderTagClass = 'image-placeholder-tag';
+                        placeholderPrefix = '@';
+                        typeLabel = '🖼️ 图片';
+                    } else if (p.type === 'excel') {
+                        placeholderTagClass = 'excel-placeholder-tag';
+                        placeholderPrefix = 'excel:';
+                        typeLabel = '📊 Excel(OLE)';
+                    } else if (p.type === 'table') {
+                        placeholderTagClass = 'table-placeholder-tag';
+                        placeholderPrefix = '#';
+                        typeLabel = '📈 表格(OLE)';
+                    }
+                    
+                    const isOleType = p.type === 'excel' || p.type === 'table';
+                    const mappedColumn = !isOleType ? this.excelHeaders.find(h => h.toLowerCase().replace(/[_\s]/g, '') === p.name.toLowerCase().replace(/[_\s]/g, '')) : null;
+                    const exampleValue = (!isOleType && mappedColumn && this.excelData.length > 0) ? this.excelData[0][mappedColumn] : '-';
+                    const mappedColumnDisplay = isOleType ? 'OLE嵌入' : (mappedColumn || '<span style="color: #ff4d4f;">未匹配</span>');
+                    
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td><span class="${p.type === 'image' ? 'image-placeholder-tag' : 'placeholder-tag'}">{{${p.type === 'image' ? '@' : ''}${p.name}}}</span></td><td>${p.type === 'image' ? '🖼️ 图片' : '📝 文本'}</td><td>${exampleValue !== '-' ? String(exampleValue).substring(0, 50) : '-'}</td><td>${mappedColumn || '<span style="color: #ff4d4f;">未匹配</span>'}</td>`;
+                    row.innerHTML = `<td><span class="${placeholderTagClass}">{{${placeholderPrefix}${p.name}}}</span></td><td>${typeLabel}</td><td>${exampleValue !== '-' ? String(exampleValue).substring(0, 50) : '-'}</td><td>${mappedColumnDisplay}</td>`;
                     mappingTableBody.appendChild(row);
                 });
-                const allMatched = this.templatePlaceholders.every(p => this.excelHeaders.some(h => h.toLowerCase().replace(/[_\s]/g, '') === p.name.toLowerCase().replace(/[_\s]/g, '')));
+                const allMatched = this.templatePlaceholders.filter(p => p.type !== 'excel' && p.type !== 'table').every(p => this.excelHeaders.some(h => h.toLowerCase().replace(/[_\s]/g, '') === p.name.toLowerCase().replace(/[_\s]/g, '')));
                 generateBtn.disabled = !allMatched || this.excelData.length === 0;
             },
 
@@ -359,11 +555,13 @@
             },
 
             updateStepStatus(step) {
-                for (let i = 1; i <= 3; i++) {
+                for (let i = 1; i <= 4; i++) {
                     const stepCard = document.getElementById(`step${i}`);
-                    stepCard.classList.remove('active', 'completed');
-                    if (i < step) stepCard.classList.add('completed');
-                    else if (i === step) stepCard.classList.add('active');
+                    if (stepCard) {
+                        stepCard.classList.remove('active', 'completed');
+                        if (i < step) stepCard.classList.add('completed');
+                        else if (i === step) stepCard.classList.add('active');
+                    }
                 }
             },
 
@@ -371,6 +569,7 @@
                 document.getElementById('templateStatus').textContent = this.templateFile ? this.templateFile.name.substring(0, 15) + '...' : '-';
                 document.getElementById('dataCount').textContent = this.excelData.length > 0 ? this.excelData.length + ' 条' : '-';
                 document.getElementById('imageFolders').textContent = Object.keys(this.imageFolders).length > 0 ? Object.keys(this.imageFolders).length + ' 个' : '-';
+                document.getElementById('tableFileStatus').textContent = this.communityPackages.length > 0 ? this.communityPackages.length + ' 个小区' : '-';
             },
 
             showFileItem(listId, file) {
@@ -438,6 +637,7 @@
 
                 const textPlaceholders = this.templatePlaceholders.filter(p => p.type === 'text');
                 const imagePlaceholders = this.templatePlaceholders.filter(p => p.type === 'image');
+                const excelPlaceholders = this.templatePlaceholders.filter(p => p.type === 'excel');
 
                 textPlaceholders.forEach(p => {
                     const placeholder = `{{${p.name}}}`;
@@ -492,10 +692,152 @@
                     documentXml = documentXml.split(placeholder).join(allImageXml);
                 }
 
+                for (const p of excelPlaceholders) {
+                    const placeholder = p.fullMatch;
+                    let excelFileNameFromData = data[p.name];
+                    
+                    if (!excelFileNameFromData) {
+                        excelFileNameFromData = data[`excel:${p.name}`];
+                    }
+                    
+                    if (!excelFileNameFromData) {
+                        const matchedKey = Object.keys(data).find(key => 
+                            key.toLowerCase().replace(/[_\s]/g, '') === p.name.toLowerCase().replace(/[_\s]/g, '') ||
+                            key.toLowerCase().replace(/[_\s]/g, '') === `excel:${p.name}`.toLowerCase().replace(/[_\s]/g, '')
+                        );
+                        if (matchedKey) {
+                            excelFileNameFromData = data[matchedKey];
+                        }
+                    }
+                    
+                    if (!excelFileNameFromData) {
+                        this.log('warn', `未配置Excel文件名: ${p.name}`);
+                        documentXml = documentXml.split(placeholder).join(`[Excel文件: 未配置]`);
+                        continue;
+                    }
+                    
+                    let matchedExcel = null;
+                    const allTables = Object.values(this.tableFiles).flat();
+                    
+                    this.log('info', `查找Excel文件: ${excelFileNameFromData}，可用文件数: ${allTables.length}`);
+                    allTables.forEach((table, index) => {
+                        this.log('info', `  可用文件 ${index + 1}: ${table.name}`);
+                    });
+                    
+                    for (const table of allTables) {
+                        if (table.name === excelFileNameFromData || 
+                            table.name.includes(String(excelFileNameFromData)) ||
+                            (typeof excelFileNameFromData === 'string' && excelFileNameFromData.includes(table.name))) {
+                            matchedExcel = table;
+                            break;
+                        }
+                    }
+                    
+                    if (!matchedExcel) {
+                        const fileIndex = parseInt(excelFileNameFromData);
+                        if (!isNaN(fileIndex) && fileIndex > 0 && fileIndex <= allTables.length) {
+                            matchedExcel = allTables[fileIndex - 1];
+                            this.log('info', `使用索引匹配，选择第${fileIndex}个文件: ${matchedExcel.name}`);
+                        } else {
+                            const currentPlaceholderIndex = excelPlaceholders.indexOf(p);
+                            const availableFileIndex = currentPlaceholderIndex % allTables.length;
+                            matchedExcel = allTables[availableFileIndex];
+                            this.log('info', `使用顺序匹配，占位符索引${currentPlaceholderIndex} -> 文件索引${availableFileIndex + 1}`);
+                        }
+                    }
+                    
+                    if (!matchedExcel) {
+                        this.log('warn', `未找到Excel文件: ${excelFileNameFromData}`);
+                        documentXml = documentXml.split(placeholder).join(`[Excel文件: ${excelFileNameFromData} 未找到]`);
+                        continue;
+                    }
+                    
+                    this.log('info', `找到Excel文件: ${matchedExcel.name}`);
+                    
+                    relIdCounter++;
+                    const relId = `rId${relIdCounter}`;
+                    const embedFileName = `Microsoft_Excel_Worksheet_${Date.now()}.xlsx`;
+                    
+                    zip.file(`word/embeddings/${embedFileName}`, matchedExcel.base64, { base64: true });
+                    
+                    const oleRelXml = `<Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/${embedFileName}" TargetMode="Internal"/>`;
+                    relsXml = relsXml.replace('</Relationships>', `${oleRelXml}</Relationships>`);
+                    
+                    const oleXml = this.createOleObjectXml(relId, embedFileName);
+                    documentXml = documentXml.split(placeholder).join(oleXml);
+                    
+                    this.log('info', `已插入OLE对象: ${embedFileName}`);
+                }
+
+                this.log('info', `document.xml 长度: ${documentXml.length} 字符`);
+                
                 zip.file('word/document.xml', documentXml);
                 zip.file('word/_rels/document.xml.rels', relsXml);
+                
+                const blob = await zip.generateAsync({ type: 'blob' });
+                this.log('info', `ZIP 文件生成成功，大小: ${blob.size} 字节`);
+                return blob;
+            },
 
-                return await zip.generateAsync({ type: 'blob' });
+            async excelToCsv(base64Data) {
+                const binary = atob(base64Data);
+                const arrayBuffer = new ArrayBuffer(binary.length);
+                const view = new Uint8Array(arrayBuffer);
+                for (let i = 0; i < binary.length; i++) {
+                    view[i] = binary.charCodeAt(i);
+                }
+                
+                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                
+                let csv = XLSX.utils.sheet_to_csv(worksheet);
+                csv = csv.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return csv;
+            },
+            
+            async callBackendGenerateReport(templateBase64, excelFiles, placeholderMappings) {
+                try {
+                    this.log('info', `调用后端API生成报告...`);
+                    
+                    const response = await fetch(`${this.backendUrl}/generate-report`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            template: templateBase64,
+                            excelFiles: excelFiles,
+                            placeholderMappings: placeholderMappings
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || '后端处理失败');
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (result.success && result.report) {
+                        const reportBytes = atob(result.report);
+                        const reportArray = new Uint8Array(reportBytes.length);
+                        for (let i = 0; i < reportBytes.length; i++) {
+                            reportArray[i] = reportBytes.charCodeAt(i);
+                        }
+                        return new Blob([reportArray], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+                    } else {
+                        throw new Error('后端返回数据格式错误');
+                    }
+                } catch (error) {
+                    this.log('error', `后端API调用失败: ${error.message}`);
+                    throw error;
+                }
+            },
+            
+            createOleObjectXml(relId, fileName) {
+                const shapeId = relId.replace('rId', '');
+                return `<w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:r><w:object w:dxaOrig="21600" w:dyaOrig="21600"><v:shape id="_x0000_s${shapeId}" type="#_x0000_t75" style="width:14400px;height:14400px" o:ole="true"><v:imagedata r:id="${relId}" o:title="${fileName}"/><o:OLEObject Type="Embed" ProgID="Excel.Sheet.12" ShapeID="_x0000_s${shapeId}" DrawAspect="Content" ObjectID="_x0000_o${shapeId}"/></v:shape></w:object></w:r></w:p>`;
             },
 
             createDrawingXml(relId, imageFileName, extension) {
@@ -584,6 +926,75 @@
             isImageFile(filename) {
                 const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
                 return imageExtensions.some(ext => filename.toLowerCase().endsWith(ext));
+            },
+            
+            isGarbageChars(str) {
+                const garbagePattern = /[\x80-\xFF][\x80-\xFF]/;
+                const hasUnderscores = str.includes('_') && str.split('_').length > 3;
+                return garbagePattern.test(str) || hasUnderscores;
+            },
+            
+            decodeGBK(encodedStr) {
+                try {
+                    const encoder = new TextEncoder('iso-8859-1');
+                    const bytes = encoder.encode(encodedStr);
+                    
+                    const decoderGBK = new TextDecoder('GBK');
+                    const decoderGB2312 = new TextDecoder('GB2312');
+                    const decoderUTF8 = new TextDecoder('UTF-8', {fatal: false});
+                    const decoderBig5 = new TextDecoder('Big5');
+                    
+                    const decodedGBK = decoderGBK.decode(bytes);
+                    const decodedGB2312 = decoderGB2312.decode(bytes);
+                    const decodedUTF8 = decoderUTF8.decode(bytes);
+                    const decodedBig5 = decoderBig5.decode(bytes);
+                    
+                    console.log('[DEBUG] 原始字节:', Array.from(bytes).slice(0, 20));
+                    console.log('[DEBUG] GBK解码:', decodedGBK);
+                    console.log('[DEBUG] GB2312解码:', decodedGB2312);
+                    console.log('[DEBUG] UTF-8解码:', decodedUTF8);
+                    console.log('[DEBUG] Big5解码:', decodedBig5);
+                    
+                    const allDecodings = [decodedGBK, decodedGB2312, decodedUTF8, decodedBig5];
+                    const validDecoding = allDecodings.find(d => 
+                        d.includes('小区') || d.includes('报告') || d.includes('表') || 
+                        d.includes('评估') || d.includes('单元') || d.includes('对应')
+                    );
+                    
+                    if (validDecoding) {
+                        console.log('[DEBUG] 找到有效解码:', validDecoding);
+                        return validDecoding;
+                    }
+                    
+                    const tryUTF8toGBK = this.tryUTF8toGBK(encodedStr);
+                    if (tryUTF8toGBK && (tryUTF8toGBK.includes('小区') || tryUTF8toGBK.includes('报告') || tryUTF8toGBK.includes('表'))) {
+                        console.log('[DEBUG] UTF8转GBK成功:', tryUTF8toGBK);
+                        return tryUTF8toGBK;
+                    }
+                    
+                    return encodedStr;
+                } catch (e) {
+                    console.log('[DEBUG] 解码失败:', e);
+                    return encodedStr;
+                }
+            },
+            
+            tryUTF8toGBK(str) {
+                try {
+                    const utf8Bytes = new TextEncoder('UTF-8').encode(str);
+                    const gbkDecoder = new TextDecoder('GBK', {fatal: false});
+                    return gbkDecoder.decode(utf8Bytes);
+                } catch (e) {
+                    return null;
+                }
+            },
+            
+            tryDecodeFileName(encodedStr) {
+                const decoded = this.decodeGBK(encodedStr);
+                if (decoded.includes('小区') || decoded.includes('报告') || decoded.includes('表') || decoded.includes('xls')) {
+                    return decoded;
+                }
+                return encodedStr;
             }
         };
 
