@@ -387,30 +387,39 @@
                 for (const [path, zipEntry] of entries) {
                     if (zipEntry.dir) continue;
                     
-                    if (path.includes('excel/') && (path.endsWith('.xlsx') || path.endsWith('.xls'))) {
-                        const fileName = path.split('/').pop();
+                    const decodedPath = this.decodeZipPath(path);
+                    console.log('[DEBUG] 原始路径:', path, '→ 解码后:', decodedPath);
+                    
+                    if ((decodedPath.includes('/excel/') || path.includes('/excel/')) && 
+                        (decodedPath.endsWith('.xlsx') || decodedPath.endsWith('.xls') || 
+                         path.endsWith('.xlsx') || path.endsWith('.xls'))) {
+                        const fileName = decodedPath.split('/').pop() || path.split('/').pop();
                         const fileData = await zipEntry.async('base64');
-                        excelFiles.push({ name: fileName, base64: fileData, extension: fileName.split('.').pop().toLowerCase() });
-                        console.log('[DEBUG] Excel文件:', fileName);
-                    } else if (path.includes('Environment_images/') && this.isImageFile(path)) {
-                        const fileName = path.split('/').pop();
+                        const extension = fileName.split('.').pop().toLowerCase();
+                        excelFiles.push({ name: fileName, base64: fileData, extension: extension });
+                        console.log('[DEBUG] ✓ Excel文件:', fileName);
+                    } else if ((decodedPath.includes('Environment_images') || path.includes('Environment_images')) && this.isImageFile(decodedPath)) {
+                        const fileName = decodedPath.split('/').pop() || path.split('/').pop();
                         const fileData = await zipEntry.async('base64');
                         const extension = fileName.split('.').pop().toLowerCase();
                         environmentImages.push({ name: fileName, base64: fileData, extension: extension });
-                        console.log('[DEBUG] 环境图片:', fileName);
-                    } else if (path.includes('RemovedEquipment_images/') && this.isImageFile(path)) {
-                        const fileName = path.split('/').pop();
+                        console.log('[DEBUG] ✓ 环境图片:', fileName);
+                    } else if ((decodedPath.includes('RemovedEquipment_images') || path.includes('RemovedEquipment_images')) && this.isImageFile(decodedPath)) {
+                        const fileName = decodedPath.split('/').pop() || path.split('/').pop();
                         const fileData = await zipEntry.async('base64');
                         const extension = fileName.split('.').pop().toLowerCase();
                         removedEquipmentImages.push({ name: fileName, base64: fileData, extension: extension });
-                        console.log('[DEBUG] 设备图片:', fileName);
+                        console.log('[DEBUG] ✓ 设备图片:', fileName);
                     }
                     
-                    const pathParts = path.split('/');
+                    const pathParts = decodedPath.split('/');
                     if (pathParts.length >= 2) {
                         communityName = pathParts[0];
                     }
                 }
+                
+                communityName = communityName.replace(/[^a-zA-Z0-9\u4e00-\u9fa5_-]/g, '');
+                console.log('[DEBUG] 小区名称:', communityName);
                 
                 return {
                     communityName,
@@ -419,6 +428,26 @@
                     environmentImages,
                     removedEquipmentImages
                 };
+            },
+            
+            decodeZipPath(path) {
+                try {
+                    const encoder = new TextEncoder('iso-8859-1');
+                    const decoderGBK = new TextDecoder('GBK');
+                    const decoderUTF8 = new TextDecoder('UTF-8', {fatal: false});
+                    
+                    const bytes = encoder.encode(path);
+                    const decodedGBK = decoderGBK.decode(bytes);
+                    const decodedUTF8 = decoderUTF8.decode(bytes);
+                    
+                    const hasGarbage = /[\x80-\xFF][\x80-\xFF]/.test(path);
+                    if (hasGarbage) {
+                        return decodedGBK;
+                    }
+                    return decodedUTF8;
+                } catch (e) {
+                    return path;
+                }
             },
             
             renderCommunityFolderTree() {
@@ -717,7 +746,24 @@
                     }
                     
                     let matchedExcel = null;
-                    const allTables = Object.values(this.tableFiles).flat();
+                    let allTables = [];
+                    
+                    const communityName = data['CommunityName'] || data['communityName'] || data['小区名称'];
+                    if (communityName && this.communityPackages.length > 0) {
+                        const matchedCommunity = this.communityPackages.find(pkg => 
+                            pkg.communityName.includes(communityName) || 
+                            communityName.includes(pkg.communityName)
+                        );
+                        
+                        if (matchedCommunity) {
+                            allTables = matchedCommunity.excelFiles;
+                            this.log('info', `找到小区 ${communityName} 的数据包，包含 ${allTables.length} 个Excel文件`);
+                        }
+                    }
+                    
+                    if (allTables.length === 0) {
+                        allTables = this.communityPackages.flatMap(pkg => pkg.excelFiles);
+                    }
                     
                     this.log('info', `查找Excel文件: ${excelFileNameFromData}，可用文件数: ${allTables.length}`);
                     allTables.forEach((table, index) => {
@@ -741,8 +787,10 @@
                         } else {
                             const currentPlaceholderIndex = excelPlaceholders.indexOf(p);
                             const availableFileIndex = currentPlaceholderIndex % allTables.length;
-                            matchedExcel = allTables[availableFileIndex];
-                            this.log('info', `使用顺序匹配，占位符索引${currentPlaceholderIndex} -> 文件索引${availableFileIndex + 1}`);
+                            if (allTables[availableFileIndex]) {
+                                matchedExcel = allTables[availableFileIndex];
+                                this.log('info', `使用顺序匹配，占位符索引${currentPlaceholderIndex} -> 文件索引${availableFileIndex + 1}`);
+                            }
                         }
                     }
                     
