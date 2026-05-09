@@ -51,6 +51,16 @@
         .image-placeholder-tag { background-color: #fff7e6; color: #fa8c16; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-family: monospace; }
         .excel-placeholder-tag { background-color: #f6ffed; color: #52c41a; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-family: monospace; }
         .preview-section { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 30px; }
+        .backend-mode-switch { display: flex; align-items: center; justify-content: flex-end; padding: 16px 24px; background-color: #fffbe6; border-radius: 8px; margin-bottom: 24px; }
+        .switch { position: relative; display: inline-block; width: 48px; height: 24px; margin-right: 12px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #1890ff; }
+        input:checked + .slider:before { transform: translateX(24px); }
+        .slider.round { border-radius: 24px; }
+        .switch-label { font-weight: 600; color: #fa8c16; margin-right: 8px; }
+        .switch-hint { font-size: 12px; color: #999; }
         .preview-content { border: 1px solid #e8e8e8; border-radius: 8px; padding: 20px; max-height: 500px; overflow-y: auto; background-color: #fafafa; }
         .action-buttons { display: flex; gap: 16px; justify-content: center; margin-top: 30px; }
         .btn { padding: 12px 32px; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s ease; border: none; }
@@ -185,6 +195,15 @@
             <button class="btn btn-success" id="downloadAllBtn" disabled>📥 下载所有报告</button>
         </div>
 
+        <div class="backend-mode-switch">
+            <label class="switch">
+                <input type="checkbox" id="backendModeSwitch" onchange="App.toggleBackendMode()">
+                <span class="slider round"></span>
+            </label>
+            <span class="switch-label">后端模式</span>
+            <span class="switch-hint">使用Python后端处理Excel OLE嵌入</span>
+        </div>
+        
         <div class="generate-result hidden" id="generateResult">
             <div class="section-divider"></div>
             <div class="section-title">生成结果</div>
@@ -207,11 +226,138 @@
             communityPackages: [],
             generatedReports: [],
             useBackendMode: false,
-            backendUrl: 'http://localhost:5000/api',
+            backendUrl: 'http://localhost:8080/api',
 
             init() {
                 this.bindEvents();
                 this.updateStats();
+                this.checkBackendStatus();
+            },
+
+            async toggleBackendMode() {
+                const switchEl = document.getElementById('backendModeSwitch');
+                const isChecked = switchEl.checked;
+                
+                if (isChecked) {
+                    this.showToast('正在检测后端服务...');
+                    const isRunning = await this.checkBackendStatus();
+                    
+                    if (isRunning) {
+                        this.useBackendMode = true;
+                        this.showToast('✅ 后端服务已连接');
+                    } else {
+                        switchEl.checked = false;
+                        this.showBackendStartupDialog();
+                    }
+                } else {
+                    this.useBackendMode = false;
+                    this.showToast('已切换到本地模式');
+                }
+            },
+            
+            showBackendStartupDialog() {
+                const dialogContent = `
+                    <div style="padding: 24px; max-width: 480px;">
+                        <div style="display: flex; align-items: center; margin-bottom: 20px;">
+                            <div style="width: 48px; height: 48px; background-color: #fffbe6; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 16px;">
+                                <span style="font-size: 28px;">🚀</span>
+                            </div>
+                            <div>
+                                <h3 style="margin: 0; color: #1890ff; font-size: 18px;">启动后端服务</h3>
+                                <p style="margin: 4px 0 0 0; color: #999; font-size: 14px;">后端模式需要先启动Python服务</p>
+                            </div>
+                        </div>
+                        <div style="background-color: #f6ffed; border: 1px solid #b7eb8f; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                            <p style="margin: 0; color: #389e0d; font-size: 14px; font-weight: 500;">
+                                📌 <strong>推荐方式：双击启动脚本</strong>
+                            </p>
+                            <p style="margin: 8px 0 0 0; color: #52c41a; font-size: 14px;">
+                                找到并双击 <code style="background-color: rgba(255,255,255,0.8); padding: 2px 6px; border-radius: 4px;">start_server.bat</code> 文件即可启动服务
+                            </p>
+                        </div>
+                        <div style="background-color: #f5f7fa; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
+                            <p style="margin-bottom: 12px; color: #666; font-size: 14px;">或者使用命令行手动启动：</p>
+                            <ol style="margin: 0; padding-left: 20px; color: #333; font-size: 14px;">
+                                <li style="margin-bottom: 8px;">打开 <strong>命令提示符 (CMD)</strong> 或 <strong>PowerShell</strong></li>
+                                <li style="margin-bottom: 8px;">切换到项目目录：</li>
+                                <li style="margin-bottom: 8px;"><code style="display: block; background-color: #fff; padding: 8px 12px; border-radius: 4px; font-family: 'Courier New', monospace; word-break: break-all;">cd c:\\Users\\Administrator\\Documents\\trae_projects\\test1\\word-report-generator</code></li>
+                                <li style="margin-bottom: 8px;">运行命令启动服务：</li>
+                                <li><code style="display: block; background-color: #fff; padding: 8px 12px; border-radius: 4px; font-family: 'Courier New', monospace;">python server.py</code></li>
+                            </ol>
+                        </div>
+                        <div style="background-color: #e6f7ff; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
+                            <p style="margin: 0; color: #1890ff; font-size: 14px;">
+                                <strong>💡 提示：</strong>启动成功后终端会显示 <code style="background-color: rgba(255,255,255,0.8); padding: 2px 6px; border-radius: 4px;">Server running on http://localhost:8080</code>
+                            </p>
+                        </div>
+                        <div style="display: flex; gap: 12px;">
+                            <button onclick="document.getElementById('backendStartupModal').style.display='none';" 
+                                    style="flex: 1; padding: 12px 24px; background-color: #f5f5f5; color: #666; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                                取消
+                            </button>
+                            <button onclick="App.checkBackendAndEnable();" 
+                                    style="flex: 1; padding: 12px 24px; background-color: #1890ff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
+                                已启动，检查状态
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                const existingModal = document.getElementById('backendStartupModal');
+                if (existingModal) {
+                    existingModal.remove();
+                }
+                
+                const modal = document.createElement('div');
+                modal.id = 'backendStartupModal';
+                modal.style.cssText = `
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 100%;
+                    background-color: rgba(0,0,0,0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 10000;
+                `;
+                modal.innerHTML = `
+                    <div style="background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); max-width: 90%;">
+                        ${dialogContent}
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            },
+            
+            async checkBackendAndEnable() {
+                const isRunning = await this.checkBackendStatus();
+                if (isRunning) {
+                    document.getElementById('backendStartupModal').style.display = 'none';
+                    document.getElementById('backendModeSwitch').checked = true;
+                    this.useBackendMode = true;
+                    this.showToast('✅ 后端服务已连接');
+                } else {
+                    this.showToast('❌ 后端服务仍未启动，请检查终端', true);
+                }
+            },
+
+            async checkBackendStatus() {
+                try {
+                    const response = await fetch(`${this.backendUrl}/health`);
+                    if (response.ok) {
+                        document.getElementById('backendModeSwitch').disabled = false;
+                        return true;
+                    } else {
+                        document.getElementById('backendModeSwitch').checked = false;
+                        this.useBackendMode = false;
+                        return false;
+                    }
+                } catch (e) {
+                    document.getElementById('backendModeSwitch').checked = false;
+                    this.useBackendMode = false;
+                    return false;
+                }
             },
 
             bindEvents() {
@@ -384,42 +530,63 @@
                 let environmentImages = [];
                 let removedEquipmentImages = [];
                 
+                console.log('[DEBUG] 开始处理压缩包:', zipFileName);
+                
                 for (const [path, zipEntry] of entries) {
-                    if (zipEntry.dir) continue;
+                    if (zipEntry.dir) {
+                        console.log('[DEBUG] 目录:', path);
+                        continue;
+                    }
                     
-                    const decodedPath = this.decodeZipPath(path);
+                    let decodedPath = this.decodeZipPath(path);
                     console.log('[DEBUG] 原始路径:', path, '→ 解码后:', decodedPath);
                     
-                    if ((decodedPath.includes('/excel/') || path.includes('/excel/')) && 
-                        (decodedPath.endsWith('.xlsx') || decodedPath.endsWith('.xls') || 
-                         path.endsWith('.xlsx') || path.endsWith('.xls'))) {
-                        const fileName = decodedPath.split('/').pop() || path.split('/').pop();
+                    const isExcelFile = (decodedPath.includes('/excel/') || path.toLowerCase().includes('/excel/')) && 
+                                       (decodedPath.match(/\.(xlsx|xls)$/i) || path.match(/\.(xlsx|xls)$/i));
+                    
+                    const isEnvImage = (decodedPath.includes('Environment_images') || 
+                                       path.includes('Environment_images') ||
+                                       decodedPath.includes('Environment') ||
+                                       path.includes('Environment')) && 
+                                      this.isImageFile(decodedPath) && this.isImageFile(path);
+                    
+                    const isEquipImage = (decodedPath.includes('RemovedEquipment_images') || 
+                                         path.includes('RemovedEquipment_images') ||
+                                         decodedPath.includes('RemovedEquipment') ||
+                                         path.includes('RemovedEquipment')) && 
+                                        this.isImageFile(decodedPath) && this.isImageFile(path);
+                    
+                    let fileName = decodedPath.split('/').pop() || path.split('/').pop();
+                    if (!fileName || fileName.length < 2) {
+                        fileName = `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                    }
+                    
+                    if (isExcelFile) {
                         const fileData = await zipEntry.async('base64');
                         const extension = fileName.split('.').pop().toLowerCase();
                         excelFiles.push({ name: fileName, base64: fileData, extension: extension });
-                        console.log('[DEBUG] ✓ Excel文件:', fileName);
-                    } else if ((decodedPath.includes('Environment_images') || path.includes('Environment_images')) && this.isImageFile(decodedPath)) {
-                        const fileName = decodedPath.split('/').pop() || path.split('/').pop();
+                        console.log('[DEBUG] ✓ 发现Excel文件:', fileName, '大小:', fileData.length, 'bytes');
+                    } else if (isEnvImage) {
                         const fileData = await zipEntry.async('base64');
                         const extension = fileName.split('.').pop().toLowerCase();
                         environmentImages.push({ name: fileName, base64: fileData, extension: extension });
-                        console.log('[DEBUG] ✓ 环境图片:', fileName);
-                    } else if ((decodedPath.includes('RemovedEquipment_images') || path.includes('RemovedEquipment_images')) && this.isImageFile(decodedPath)) {
-                        const fileName = decodedPath.split('/').pop() || path.split('/').pop();
+                        console.log('[DEBUG] ✓ 发现环境图片:', fileName);
+                    } else if (isEquipImage) {
                         const fileData = await zipEntry.async('base64');
                         const extension = fileName.split('.').pop().toLowerCase();
                         removedEquipmentImages.push({ name: fileName, base64: fileData, extension: extension });
-                        console.log('[DEBUG] ✓ 设备图片:', fileName);
+                        console.log('[DEBUG] ✓ 发现设备图片:', fileName);
                     }
                     
-                    const pathParts = decodedPath.split('/');
+                    const pathParts = decodedPath.split('/').filter(p => p && p.trim());
                     if (pathParts.length >= 2) {
                         communityName = pathParts[0];
                     }
                 }
                 
-                communityName = communityName.replace(/[^a-zA-Z0-9\u4e00-\u9fa5_-]/g, '');
-                console.log('[DEBUG] 小区名称:', communityName);
+                communityName = this.sanitizeCommunityName(communityName, zipFileName);
+                console.log('[DEBUG] 最终小区名称:', communityName);
+                console.log('[DEBUG] 处理结果:', excelFiles.length, '个Excel,', environmentImages.length, '张环境图片,', removedEquipmentImages.length, '张设备图片');
                 
                 return {
                     communityName,
@@ -430,22 +597,64 @@
                 };
             },
             
+            sanitizeCommunityName(name, fallback) {
+                if (!name || name.length < 2) {
+                    name = fallback.replace('.zip', '');
+                }
+                
+                name = name.replace(/[^a-zA-Z0-9\u4e00-\u9fa5_-]/g, '');
+                
+                if (name.length > 50) {
+                    name = name.substring(0, 50);
+                }
+                
+                return name || 'unknown_community';
+            },
+            
             decodeZipPath(path) {
                 try {
-                    const encoder = new TextEncoder('iso-8859-1');
+                    if (!path) return path;
+                    
+                    const hasChinese = /[\u4e00-\u9fa5]/.test(path);
+                    if (!hasChinese) {
+                        return path;
+                    }
+                    
+                    const bytes = new Uint8Array(path.length);
+                    for (let i = 0; i < path.length; i++) {
+                        bytes[i] = path.charCodeAt(i) & 0xFF;
+                    }
+                    
                     const decoderGBK = new TextDecoder('GBK');
                     const decoderUTF8 = new TextDecoder('UTF-8', {fatal: false});
+                    const decoderGB2312 = new TextDecoder('GB2312');
+                    const decoderBig5 = new TextDecoder('Big5');
                     
-                    const bytes = encoder.encode(path);
                     const decodedGBK = decoderGBK.decode(bytes);
                     const decodedUTF8 = decoderUTF8.decode(bytes);
+                    const decodedGB2312 = decoderGB2312.decode(bytes);
+                    const decodedBig5 = decoderBig5.decode(bytes);
                     
-                    const hasGarbage = /[\x80-\xFF][\x80-\xFF]/.test(path);
-                    if (hasGarbage) {
-                        return decodedGBK;
+                    const candidates = [decodedGBK, decodedUTF8, decodedGB2312, decodedBig5];
+                    let bestMatch = path;
+                    let bestScore = 0;
+                    
+                    for (const candidate of candidates) {
+                        let score = 0;
+                        if (candidate.includes('小区') || candidate.includes('RRU') || candidate.includes('LTE')) score += 10;
+                        if (candidate.includes('excel') || candidate.includes('images')) score += 5;
+                        if (!/[\x80-\xFF][\x80-\xFF]/.test(candidate)) score += 3;
+                        if (candidate.length > 0) score += 1;
+                        
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestMatch = candidate;
+                        }
                     }
-                    return decodedUTF8;
+                    
+                    return bestMatch;
                 } catch (e) {
+                    console.log('[DEBUG] 解码失败:', e.message);
                     return path;
                 }
             },
@@ -626,7 +835,20 @@
                 this.generatedReports = [];
 
                 const total = this.excelData.length;
-                this.log('info', `开始生成 ${total} 份报告...`);
+                
+                if (this.communityPackages.length > 0 && this.useBackendMode) {
+                    await this.generateReportsWithBackend(total, progressFill, progressText);
+                } else {
+                    await this.generateReportsLocally(total, progressFill, progressText);
+                }
+
+                downloadAllBtn.disabled = this.generatedReports.length === 0;
+                generateBtn.disabled = false;
+                this.renderDownloadLinks();
+            },
+            
+            async generateReportsLocally(total, progressFill, progressText) {
+                this.log('info', `开始生成 ${total} 份报告...(本地模式)`);
                 this.log('info', `可用图片文件夹: ${Object.keys(this.imageFolders).join(', ')}`);
 
                 for (let i = 0; i < total; i++) {
@@ -651,9 +873,142 @@
 
                 progressFill.style.width = '100%';
                 progressText.textContent = `完成！成功生成 ${this.generatedReports.length} 份报告`;
-                downloadAllBtn.disabled = this.generatedReports.length === 0;
-                generateBtn.disabled = false;
-                this.renderDownloadLinks();
+            },
+            
+            async generateReportsWithBackend(total, progressFill, progressText) {
+                this.log('info', `开始生成 ${total} 份报告...(后端模式)`);
+                this.log('info', `可用小区数据包: ${this.communityPackages.length} 个`);
+
+                try {
+                    const communityZips = [];
+                    const excelFilesMap = {};
+                    
+                    for (const pkg of this.communityPackages) {
+                        const zipData = await this.rebuildCommunityZip(pkg);
+                        communityZips.push(zipData);
+                        
+                        if (pkg && pkg.name) {
+                            const villageName = pkg.name.replace('.zip', '');
+                            excelFilesMap[villageName] = pkg.excelFiles || {};
+                        }
+                    }
+
+                    for (let i = 0; i < total; i++) {
+                        const data = this.excelData[i];
+                        const villageName = this.getVillageName(data);
+                        const progress = ((i + 1) / total) * 100;
+                        progressFill.style.width = `${progress}%`;
+                        progressText.textContent = `正在生成第 ${i + 1} / ${total} 份报告...`;
+
+                        this.log('info', `处理第 ${i + 1} 条数据: ${villageName}`);
+
+                        try {
+                            const localReportBlob = await this.generateSingleReport(data, i);
+                            
+                            const reportBase64 = await this.fileToBase64FromBlob(localReportBlob);
+                            const reportText = atob(reportBase64);
+                            const hasExcelPlaceholders = reportText.includes('{{excel:');
+
+                            if (hasExcelPlaceholders && communityZips.length > 0) {
+                                this.log('info', `检测到Excel占位符，调用后端API...`);
+                                
+                                const requestData = {
+                                    template: reportBase64,
+                                    dataRows: [data],
+                                    communityZips: communityZips
+                                };
+
+                                const response = await fetch(`${this.backendUrl}/generate-reports-batch`, {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify(requestData)
+                                });
+
+                                if (!response.ok) {
+                                    const errorData = await response.json();
+                                    throw new Error(errorData.error || '后端处理失败');
+                                }
+
+                                const result = await response.json();
+
+                                if (result.success && result.reports && result.reports.length > 0) {
+                                    const report = result.reports[0];
+                                    const reportBytes = atob(report.report);
+                                    const reportArray = new Uint8Array(reportBytes.length);
+                                    for (let j = 0; j < reportBytes.length; j++) {
+                                        reportArray[j] = reportBytes.charCodeAt(j);
+                                    }
+                                    const blob = new Blob([reportArray], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+                                    const fileName = `附件4.${villageName}退网方案.docx`;
+                                    this.generatedReports.push({ name: fileName, blob: blob, data: data });
+                                } else {
+                                    throw new Error('后端未返回报告数据');
+                                }
+                            } else {
+                                const fileName = `附件4.${villageName}退网方案.docx`;
+                                this.generatedReports.push({ name: fileName, blob: localReportBlob, data: data });
+                            }
+
+                            this.log('success', `✓ 第 ${i + 1} 份报告生成成功`);
+                        } catch (error) {
+                            this.log('error', `✗ 第 ${i + 1} 份报告生成失败: ${error.message}`);
+                        }
+                        
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                    }
+
+                    progressFill.style.width = '100%';
+                    progressText.textContent = `完成！成功生成 ${this.generatedReports.length} 份报告`;
+                    
+                } catch (error) {
+                    this.log('error', `后端处理失败: ${error.message}`);
+                    this.log('info', '回退到本地模式...');
+                    await this.generateReportsLocally(total, progressFill, progressText);
+                }
+            },
+            
+            async fileToBase64FromBlob(blob) {
+                const arrayBuffer = await blob.arrayBuffer();
+                let binary = '';
+                const bytes = new Uint8Array(arrayBuffer);
+                for (let i = 0; i < bytes.length; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return window.btoa(binary);
+            },
+            
+            async fileToBase64(file) {
+                const arrayBuffer = await file.arrayBuffer();
+                let binary = '';
+                const bytes = new Uint8Array(arrayBuffer);
+                for (let i = 0; i < bytes.length; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                return window.btoa(binary);
+            },
+            
+            async rebuildCommunityZip(pkg) {
+                const zip = new JSZip();
+                
+                const excelFolder = zip.folder('excel');
+                pkg.excelFiles.forEach(file => {
+                    excelFolder.file(file.name, file.base64, { base64: true });
+                });
+                
+                const envFolder = zip.folder('Environment_images');
+                pkg.environmentImages.forEach(file => {
+                    envFolder.file(file.name, file.base64, { base64: true });
+                });
+                
+                const equipFolder = zip.folder('RemovedEquipment_images');
+                pkg.removedEquipmentImages.forEach(file => {
+                    equipFolder.file(file.name, file.base64, { base64: true });
+                });
+                
+                const content = await zip.generateAsync({ type: 'base64' });
+                return content;
             },
 
             async generateSingleReport(data, index) {
@@ -761,60 +1116,7 @@
                         }
                     }
                     
-                    if (allTables.length === 0) {
-                        allTables = this.communityPackages.flatMap(pkg => pkg.excelFiles);
-                    }
-                    
-                    this.log('info', `查找Excel文件: ${excelFileNameFromData}，可用文件数: ${allTables.length}`);
-                    allTables.forEach((table, index) => {
-                        this.log('info', `  可用文件 ${index + 1}: ${table.name}`);
-                    });
-                    
-                    for (const table of allTables) {
-                        if (table.name === excelFileNameFromData || 
-                            table.name.includes(String(excelFileNameFromData)) ||
-                            (typeof excelFileNameFromData === 'string' && excelFileNameFromData.includes(table.name))) {
-                            matchedExcel = table;
-                            break;
-                        }
-                    }
-                    
-                    if (!matchedExcel) {
-                        const fileIndex = parseInt(excelFileNameFromData);
-                        if (!isNaN(fileIndex) && fileIndex > 0 && fileIndex <= allTables.length) {
-                            matchedExcel = allTables[fileIndex - 1];
-                            this.log('info', `使用索引匹配，选择第${fileIndex}个文件: ${matchedExcel.name}`);
-                        } else {
-                            const currentPlaceholderIndex = excelPlaceholders.indexOf(p);
-                            const availableFileIndex = currentPlaceholderIndex % allTables.length;
-                            if (allTables[availableFileIndex]) {
-                                matchedExcel = allTables[availableFileIndex];
-                                this.log('info', `使用顺序匹配，占位符索引${currentPlaceholderIndex} -> 文件索引${availableFileIndex + 1}`);
-                            }
-                        }
-                    }
-                    
-                    if (!matchedExcel) {
-                        this.log('warn', `未找到Excel文件: ${excelFileNameFromData}`);
-                        documentXml = documentXml.split(placeholder).join(`[Excel文件: ${excelFileNameFromData} 未找到]`);
-                        continue;
-                    }
-                    
-                    this.log('info', `找到Excel文件: ${matchedExcel.name}`);
-                    
-                    relIdCounter++;
-                    const relId = `rId${relIdCounter}`;
-                    const embedFileName = `Microsoft_Excel_Worksheet_${Date.now()}.xlsx`;
-                    
-                    zip.file(`word/embeddings/${embedFileName}`, matchedExcel.base64, { base64: true });
-                    
-                    const oleRelXml = `<Relationship Id="${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/oleObject" Target="embeddings/${embedFileName}" TargetMode="Internal"/>`;
-                    relsXml = relsXml.replace('</Relationships>', `${oleRelXml}</Relationships>`);
-                    
-                    const oleXml = this.createOleObjectXml(relId, embedFileName);
-                    documentXml = documentXml.split(placeholder).join(oleXml);
-                    
-                    this.log('info', `已插入OLE对象: ${embedFileName}`);
+                    this.log('info', `跳过Excel插入（由后端处理），占位符: ${placeholder}`);
                 }
 
                 this.log('info', `document.xml 长度: ${documentXml.length} 字符`);
