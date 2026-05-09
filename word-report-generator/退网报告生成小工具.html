@@ -7,7 +7,6 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background-color: #f5f7fa; color: #333; min-height: 100vh; }
@@ -49,18 +48,7 @@
         .data-table tr:hover { background-color: #f5f5f5; }
         .placeholder-tag { background-color: #e6f7ff; color: #1890ff; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-family: monospace; }
         .image-placeholder-tag { background-color: #fff7e6; color: #fa8c16; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-family: monospace; }
-        .excel-placeholder-tag { background-color: #f6ffed; color: #52c41a; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-family: monospace; }
         .preview-section { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 30px; }
-        .backend-mode-switch { display: flex; align-items: center; justify-content: flex-end; padding: 16px 24px; background-color: #fffbe6; border-radius: 8px; margin-bottom: 24px; }
-        .switch { position: relative; display: inline-block; width: 48px; height: 24px; margin-right: 12px; }
-        .switch input { opacity: 0; width: 0; height: 0; }
-        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 24px; }
-        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
-        input:checked + .slider { background-color: #1890ff; }
-        input:checked + .slider:before { transform: translateX(24px); }
-        .slider.round { border-radius: 24px; }
-        .switch-label { font-weight: 600; color: #fa8c16; margin-right: 8px; }
-        .switch-hint { font-size: 12px; color: #999; }
         .preview-content { border: 1px solid #e8e8e8; border-radius: 8px; padding: 20px; max-height: 500px; overflow-y: auto; background-color: #fafafa; }
         .action-buttons { display: flex; gap: 16px; justify-content: center; margin-top: 30px; }
         .btn { padding: 12px 32px; border-radius: 8px; font-size: 16px; font-weight: 500; cursor: pointer; transition: all 0.3s ease; border: none; }
@@ -127,7 +115,6 @@
             <div class="stat-card"><div class="stat-icon blue">📁</div><div class="stat-info"><div class="stat-number" id="templateStatus">-</div><div class="stat-label">Word模板</div></div></div>
             <div class="stat-card"><div class="stat-icon green">📊</div><div class="stat-info"><div class="stat-number" id="dataCount">-</div><div class="stat-label">数据记录</div></div></div>
             <div class="stat-card"><div class="stat-icon orange">📂</div><div class="stat-info"><div class="stat-number" id="imageFolders">-</div><div class="stat-label">图片文件夹</div></div></div>
-<div class="stat-card"><div class="stat-icon blue">📈</div><div class="stat-info"><div class="stat-number" id="tableFileStatus">-</div><div class="stat-label">表格文件</div></div></div>
         </div>
 
         <div class="step-container">
@@ -149,13 +136,6 @@
                 <input type="file" id="imageInput" class="file-input" accept=".zip">
                 <div class="file-list" id="imageFileList"></div>
                 <div class="folder-tree" id="folderTree"></div>
-            </div>
-            <div class="step-card" id="step4">
-                <div class="step-header"><div class="step-number">4</div><div class="step-title">上传多小区压缩包（后端模式）</div></div>
-                <div class="upload-area" id="tableUpload"><div class="upload-icon">📦</div><div class="upload-text">点击或拖拽上传多小区压缩包</div><div class="upload-hint">支持 .zip 格式，包含多小区文件夹，每个小区下有 Environment_images、RemovedEquipment_images、excel</div></div>
-                <input type="file" id="tableInput" class="file-input" accept=".zip" multiple>
-                <div class="file-list" id="tableFileList"></div>
-                <div class="folder-tree" id="tableFolderTree"></div>
             </div>
         </div>
 
@@ -195,15 +175,6 @@
             <button class="btn btn-success" id="downloadAllBtn" disabled>📥 下载所有报告</button>
         </div>
 
-        <div class="backend-mode-switch">
-            <label class="switch">
-                <input type="checkbox" id="backendModeSwitch" onchange="App.toggleBackendMode()">
-                <span class="slider round"></span>
-            </label>
-            <span class="switch-label">后端模式</span>
-            <span class="switch-hint">使用Python后端处理Excel OLE嵌入</span>
-        </div>
-        
         <div class="generate-result hidden" id="generateResult">
             <div class="section-divider"></div>
             <div class="section-title">生成结果</div>
@@ -221,186 +192,29 @@
             excelHeaders: [],
             imageZipFile: null,
             imageFolders: {},
-            tableZipFile: null,
-            tableFiles: {},
-            communityPackages: [],
             generatedReports: [],
-            useBackendMode: false,
-            backendUrl: 'http://localhost:8080/api',
 
             init() {
                 this.bindEvents();
                 this.updateStats();
-                this.checkBackendStatus();
-            },
-
-            async toggleBackendMode() {
-                const switchEl = document.getElementById('backendModeSwitch');
-                const isChecked = switchEl.checked;
-                
-                if (isChecked) {
-                    this.showToast('正在检测后端服务...');
-                    const isRunning = await this.checkBackendStatus();
-                    
-                    if (isRunning) {
-                        this.useBackendMode = true;
-                        this.showToast('✅ 后端服务已连接');
-                    } else {
-                        switchEl.checked = false;
-                        this.showBackendStartupDialog();
-                    }
-                } else {
-                    this.useBackendMode = false;
-                    this.showToast('已切换到本地模式');
-                }
-            },
-            
-            showBackendStartupDialog() {
-                const dialogContent = `
-                    <div style="padding: 24px; max-width: 480px;">
-                        <div style="display: flex; align-items: center; margin-bottom: 20px;">
-                            <div style="width: 48px; height: 48px; background-color: #fffbe6; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 16px;">
-                                <span style="font-size: 28px;">🚀</span>
-                            </div>
-                            <div>
-                                <h3 style="margin: 0; color: #1890ff; font-size: 18px;">启动后端服务</h3>
-                                <p style="margin: 4px 0 0 0; color: #999; font-size: 14px;">后端模式需要先启动Python服务</p>
-                            </div>
-                        </div>
-                        <div style="background-color: #f6ffed; border: 1px solid #b7eb8f; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
-                            <p style="margin: 0; color: #389e0d; font-size: 14px; font-weight: 500;">
-                                📌 <strong>推荐方式：双击启动脚本</strong>
-                            </p>
-                            <p style="margin: 8px 0 0 0; color: #52c41a; font-size: 14px;">
-                                找到并双击 <code style="background-color: rgba(255,255,255,0.8); padding: 2px 6px; border-radius: 4px;">start_server.bat</code> 文件即可启动服务
-                            </p>
-                        </div>
-                        <div style="background-color: #f5f7fa; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
-                            <p style="margin-bottom: 12px; color: #666; font-size: 14px;">或者使用命令行手动启动：</p>
-                            <ol style="margin: 0; padding-left: 20px; color: #333; font-size: 14px;">
-                                <li style="margin-bottom: 8px;">打开 <strong>命令提示符 (CMD)</strong> 或 <strong>PowerShell</strong></li>
-                                <li style="margin-bottom: 8px;">切换到项目目录：</li>
-                                <li style="margin-bottom: 8px;"><code style="display: block; background-color: #fff; padding: 8px 12px; border-radius: 4px; font-family: 'Courier New', monospace; word-break: break-all;">cd c:\\Users\\Administrator\\Documents\\trae_projects\\test1\\word-report-generator</code></li>
-                                <li style="margin-bottom: 8px;">运行命令启动服务：</li>
-                                <li><code style="display: block; background-color: #fff; padding: 8px 12px; border-radius: 4px; font-family: 'Courier New', monospace;">python server.py</code></li>
-                            </ol>
-                        </div>
-                        <div style="background-color: #e6f7ff; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px;">
-                            <p style="margin: 0; color: #1890ff; font-size: 14px;">
-                                <strong>💡 提示：</strong>启动成功后终端会显示 <code style="background-color: rgba(255,255,255,0.8); padding: 2px 6px; border-radius: 4px;">Server running on http://localhost:8080</code>
-                            </p>
-                        </div>
-                        <div style="display: flex; gap: 12px;">
-                            <button onclick="document.getElementById('backendStartupModal').style.display='none';" 
-                                    style="flex: 1; padding: 12px 24px; background-color: #f5f5f5; color: #666; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
-                                取消
-                            </button>
-                            <button onclick="App.checkBackendAndEnable();" 
-                                    style="flex: 1; padding: 12px 24px; background-color: #1890ff; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px;">
-                                已启动，检查状态
-                            </button>
-                        </div>
-                    </div>
-                `;
-                
-                const existingModal = document.getElementById('backendStartupModal');
-                if (existingModal) {
-                    existingModal.remove();
-                }
-                
-                const modal = document.createElement('div');
-                modal.id = 'backendStartupModal';
-                modal.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background-color: rgba(0,0,0,0.5);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    z-index: 10000;
-                `;
-                modal.innerHTML = `
-                    <div style="background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); max-width: 90%;">
-                        ${dialogContent}
-                    </div>
-                `;
-                document.body.appendChild(modal);
-            },
-            
-            async checkBackendAndEnable() {
-                const isRunning = await this.checkBackendStatus();
-                if (isRunning) {
-                    document.getElementById('backendStartupModal').style.display = 'none';
-                    document.getElementById('backendModeSwitch').checked = true;
-                    this.useBackendMode = true;
-                    this.showToast('✅ 后端服务已连接');
-                } else {
-                    this.showToast('❌ 后端服务仍未启动，请检查终端', true);
-                }
-            },
-
-            async checkBackendStatus() {
-                try {
-                    const response = await fetch(`${this.backendUrl}/health`);
-                    if (response.ok) {
-                        document.getElementById('backendModeSwitch').disabled = false;
-                        return true;
-                    } else {
-                        document.getElementById('backendModeSwitch').checked = false;
-                        this.useBackendMode = false;
-                        return false;
-                    }
-                } catch (e) {
-                    document.getElementById('backendModeSwitch').checked = false;
-                    this.useBackendMode = false;
-                    return false;
-                }
             },
 
             bindEvents() {
-                this.setupUpload('templateUpload', 'templateInput', 'templateFileList', this.handleTemplateUpload.bind(this), false);
-                this.setupUpload('dataUpload', 'dataInput', 'dataFileList', this.handleDataUpload.bind(this), false);
-                this.setupUpload('imageUpload', 'imageInput', 'imageFileList', this.handleImageUpload.bind(this), false);
-                this.setupUpload('tableUpload', 'tableInput', 'tableFileList', this.handleTableUpload.bind(this), true);
+                this.setupUpload('templateUpload', 'templateInput', 'templateFileList', this.handleTemplateUpload.bind(this));
+                this.setupUpload('dataUpload', 'dataInput', 'dataFileList', this.handleDataUpload.bind(this));
+                this.setupUpload('imageUpload', 'imageInput', 'imageFileList', this.handleImageUpload.bind(this));
                 document.getElementById('generateBtn').addEventListener('click', this.generateReports.bind(this));
                 document.getElementById('downloadAllBtn').addEventListener('click', this.downloadAllReports.bind(this));
             },
 
-            setupUpload(areaId, inputId, listId, handler, multiple = false) {
+            setupUpload(areaId, inputId, listId, handler) {
                 const area = document.getElementById(areaId);
                 const input = document.getElementById(inputId);
-                console.log('[DEBUG] setupUpload:', areaId, inputId, 'area:', area, 'input:', input, 'multiple:', multiple);
-                if (!area || !input) {
-                    console.error('[DEBUG] 上传区域或输入框未找到:', areaId, inputId);
-                    return;
-                }
-                area.addEventListener('click', () => { console.log('[DEBUG] 点击上传区域:', areaId); input.click(); });
+                area.addEventListener('click', () => input.click());
                 area.addEventListener('dragover', (e) => { e.preventDefault(); area.classList.add('dragover'); });
                 area.addEventListener('dragleave', () => area.classList.remove('dragover'));
-                area.addEventListener('drop', (e) => { 
-                    e.preventDefault(); 
-                    area.classList.remove('dragover'); 
-                    if (e.dataTransfer.files.length > 0) {
-                        if (multiple) {
-                            handler(Array.from(e.dataTransfer.files));
-                        } else {
-                            handler(e.dataTransfer.files[0]);
-                        }
-                    }
-                });
-                input.addEventListener('change', (e) => { 
-                    console.log('[DEBUG] input change:', inputId, e.target.files.length); 
-                    if (e.target.files.length > 0) {
-                        if (multiple) {
-                            handler(Array.from(e.target.files));
-                        } else {
-                            handler(e.target.files[0]);
-                        }
-                    }
-                });
+                area.addEventListener('drop', (e) => { e.preventDefault(); area.classList.remove('dragover'); if (e.dataTransfer.files.length > 0) handler(e.dataTransfer.files[0]); });
+                input.addEventListener('change', (e) => { if (e.target.files.length > 0) handler(e.target.files[0]); });
             },
 
             async handleTemplateUpload(file) {
@@ -445,276 +259,82 @@
                 if (!file.name.endsWith('.zip')) { this.showToast('请上传 .zip 格式的压缩包', true); return; }
                 this.imageZipFile = file;
                 const arrayBuffer = await file.arrayBuffer();
-                const zip = await JSZip.loadAsync(arrayBuffer);
-                this.imageFolders = {};
-                
-                for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
-                    if (!zipEntry.dir) {
-                        let normalizedPath = relativePath.replace(/^images\/|^image\/|^pictures\/|^photos\//i, '');
-                        const pathParts = normalizedPath.split('/');
-                        let folderName, fileName;
-                        
-                        if (pathParts.length >= 2) {
-                            folderName = pathParts[0];
-                            fileName = pathParts.slice(1).join('/');
-                        } else {
-                            folderName = 'root';
-                            fileName = pathParts[0];
-                        }
-                        
-                        if (this.isExcelFile(fileName) || this.isExcelFile(folderName)) {
-                            continue;
-                        }
-                        
-                        if (!this.imageFolders[folderName]) { this.imageFolders[folderName] = []; }
-                        
-                        if (this.isImageFile(fileName)) {
-                            const imageData = await zipEntry.async('base64');
-                            const extension = fileName.split('.').pop().toLowerCase();
-                            this.imageFolders[folderName].push({ name: fileName, base64: imageData, extension: extension });
-                        }
+                const zip = await JSZip.loadAsync(arrayBuffer, {
+                    decodeFileName: function(bytes) {
+                        try {
+                            const decoder = new TextDecoder('gbk');
+                            const decoded = decoder.decode(bytes);
+                            if (/[\u4e00-\u9fff]/.test(decoded) || /[\uFF00-\uFFEF]/.test(decoded)) {
+                                return decoded;
+                            }
+                            const hasGarbled = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u0080-\u009F]/.test(decoded);
+                            if (!hasGarbled) return decoded;
+                        } catch(e) {}
+                        const utf8Decoder = new TextDecoder('utf-8');
+                        return utf8Decoder.decode(bytes);
                     }
+                });
+                this.imageFolders = {};
+
+                const VALID_SUBFOLDERS = ['RemovedEquipment_images', 'Environment_images'];
+
+                for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+                    if (zipEntry.dir) continue;
+
+                    const pathParts = relativePath.split('/').filter(p => p.length > 0);
+                    if (pathParts.length < 3) continue;
+
+                    let rootOffset = 0;
+                    if (pathParts[0] === '退网报告' || pathParts[0].toLowerCase() === 'report') {
+                        rootOffset = 1;
+                    }
+
+                    if (pathParts.length < rootOffset + 3) continue;
+
+                    const communityName = pathParts[rootOffset];
+                    const subFolder = pathParts[rootOffset + 1];
+                    const fileName = pathParts.slice(rootOffset + 2).join('/');
+
+                    if (!VALID_SUBFOLDERS.includes(subFolder)) continue;
+                    if (!this.isImageFile(fileName)) continue;
+
+                    if (!this.imageFolders[communityName]) {
+                        this.imageFolders[communityName] = {
+                            RemovedEquipment_images: [],
+                            Environment_images: []
+                        };
+                    }
+
+                    const imageData = await zipEntry.async('base64');
+                    const extension = fileName.split('.').pop().toLowerCase();
+                    this.imageFolders[communityName][subFolder].push({
+                        name: fileName,
+                        base64: imageData,
+                        extension: extension
+                    });
                 }
-                
+
                 this.renderFolderTree();
                 this.updateStats();
                 this.updateStepStatus(3);
                 const folderCount = Object.keys(this.imageFolders).length;
-                this.showToast(`成功解析 ${folderCount} 个图片文件夹！文件夹列表: ${Object.keys(this.imageFolders).join(', ')}`);
-            },
-
-            async handleTableUpload(files) {
-                console.log('[DEBUG] 表格上传开始:', files.length, '个文件');
-                
-                try {
-                    this.tableFiles = {};
-                    this.communityPackages = [];
-                    
-                    for (const file of files) {
-                        console.log('[DEBUG] 处理压缩包:', file.name);
-                        
-                        if (!file.name.endsWith('.zip')) { 
-                            this.showToast('请上传 .zip 格式的压缩包', true); 
-                            continue; 
-                        }
-                        
-                        const arrayBuffer = await file.arrayBuffer();
-                        const zip = await JSZip.loadAsync(arrayBuffer, { checkCRC32: true });
-                        
-                        const processedZip = await this.processCommunityZip(zip, file.name);
-                        if (processedZip) {
-                            this.communityPackages.push(processedZip);
-                        }
-                    }
-                    
-                    console.log('[DEBUG] 解析完成，处理了', this.communityPackages.length, '个小区包');
-                    this.communityPackages.forEach(pkg => {
-                        console.log('[DEBUG]   小区:', pkg.communityName, 'Excel文件:', pkg.excelFiles.length, '环境图片:', pkg.environmentImages.length, '设备图片:', pkg.removedEquipmentImages.length);
-                    });
-                    
-                    this.renderCommunityFolderTree();
-                    this.showFileItem('tableFileList', { name: `已处理 ${this.communityPackages.length} 个小区`, size: '', status: 'success' });
-                    this.updateStats();
-                    this.updateStepStatus(4);
-                    this.showToast(`成功处理 ${this.communityPackages.length} 个小区数据包！`);
-                } catch (error) {
-                    console.error('[DEBUG] 表格上传失败:', error);
-                    this.showToast('表格上传失败: ' + error.message, true);
-                }
-            },
-            
-            async processCommunityZip(zip, zipFileName) {
-                const entries = Object.entries(zip.files);
-                let communityName = zipFileName.replace('.zip', '');
-                let excelFiles = [];
-                let environmentImages = [];
-                let removedEquipmentImages = [];
-                
-                console.log('[DEBUG] 开始处理压缩包:', zipFileName);
-                
-                for (const [path, zipEntry] of entries) {
-                    if (zipEntry.dir) {
-                        console.log('[DEBUG] 目录:', path);
-                        continue;
-                    }
-                    
-                    let decodedPath = this.decodeZipPath(path);
-                    console.log('[DEBUG] 原始路径:', path, '→ 解码后:', decodedPath);
-                    
-                    const isExcelFile = (decodedPath.includes('/excel/') || path.toLowerCase().includes('/excel/')) && 
-                                       (decodedPath.match(/\.(xlsx|xls)$/i) || path.match(/\.(xlsx|xls)$/i));
-                    
-                    const isEnvImage = (decodedPath.includes('Environment_images') || 
-                                       path.includes('Environment_images') ||
-                                       decodedPath.includes('Environment') ||
-                                       path.includes('Environment')) && 
-                                      this.isImageFile(decodedPath) && this.isImageFile(path);
-                    
-                    const isEquipImage = (decodedPath.includes('RemovedEquipment_images') || 
-                                         path.includes('RemovedEquipment_images') ||
-                                         decodedPath.includes('RemovedEquipment') ||
-                                         path.includes('RemovedEquipment')) && 
-                                        this.isImageFile(decodedPath) && this.isImageFile(path);
-                    
-                    let fileName = decodedPath.split('/').pop() || path.split('/').pop();
-                    if (!fileName || fileName.length < 2) {
-                        fileName = `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-                    }
-                    
-                    if (isExcelFile) {
-                        const fileData = await zipEntry.async('base64');
-                        const extension = fileName.split('.').pop().toLowerCase();
-                        excelFiles.push({ name: fileName, base64: fileData, extension: extension });
-                        console.log('[DEBUG] ✓ 发现Excel文件:', fileName, '大小:', fileData.length, 'bytes');
-                    } else if (isEnvImage) {
-                        const fileData = await zipEntry.async('base64');
-                        const extension = fileName.split('.').pop().toLowerCase();
-                        environmentImages.push({ name: fileName, base64: fileData, extension: extension });
-                        console.log('[DEBUG] ✓ 发现环境图片:', fileName);
-                    } else if (isEquipImage) {
-                        const fileData = await zipEntry.async('base64');
-                        const extension = fileName.split('.').pop().toLowerCase();
-                        removedEquipmentImages.push({ name: fileName, base64: fileData, extension: extension });
-                        console.log('[DEBUG] ✓ 发现设备图片:', fileName);
-                    }
-                    
-                    const pathParts = decodedPath.split('/').filter(p => p && p.trim());
-                    if (pathParts.length >= 2) {
-                        communityName = pathParts[0];
-                    }
-                }
-                
-                communityName = this.sanitizeCommunityName(communityName, zipFileName);
-                console.log('[DEBUG] 最终小区名称:', communityName);
-                console.log('[DEBUG] 处理结果:', excelFiles.length, '个Excel,', environmentImages.length, '张环境图片,', removedEquipmentImages.length, '张设备图片');
-                
-                return {
-                    communityName,
-                    zipFileName,
-                    excelFiles,
-                    environmentImages,
-                    removedEquipmentImages
-                };
-            },
-            
-            sanitizeCommunityName(name, fallback) {
-                if (!name || name.length < 2) {
-                    name = fallback.replace('.zip', '');
-                }
-                
-                name = name.replace(/[^a-zA-Z0-9\u4e00-\u9fa5_-]/g, '');
-                
-                if (name.length > 50) {
-                    name = name.substring(0, 50);
-                }
-                
-                return name || 'unknown_community';
-            },
-            
-            decodeZipPath(path) {
-                try {
-                    if (!path) return path;
-                    
-                    const hasChinese = /[\u4e00-\u9fa5]/.test(path);
-                    if (!hasChinese) {
-                        return path;
-                    }
-                    
-                    const bytes = new Uint8Array(path.length);
-                    for (let i = 0; i < path.length; i++) {
-                        bytes[i] = path.charCodeAt(i) & 0xFF;
-                    }
-                    
-                    const decoderGBK = new TextDecoder('GBK');
-                    const decoderUTF8 = new TextDecoder('UTF-8', {fatal: false});
-                    const decoderGB2312 = new TextDecoder('GB2312');
-                    const decoderBig5 = new TextDecoder('Big5');
-                    
-                    const decodedGBK = decoderGBK.decode(bytes);
-                    const decodedUTF8 = decoderUTF8.decode(bytes);
-                    const decodedGB2312 = decoderGB2312.decode(bytes);
-                    const decodedBig5 = decoderBig5.decode(bytes);
-                    
-                    const candidates = [decodedGBK, decodedUTF8, decodedGB2312, decodedBig5];
-                    let bestMatch = path;
-                    let bestScore = 0;
-                    
-                    for (const candidate of candidates) {
-                        let score = 0;
-                        if (candidate.includes('小区') || candidate.includes('RRU') || candidate.includes('LTE')) score += 10;
-                        if (candidate.includes('excel') || candidate.includes('images')) score += 5;
-                        if (!/[\x80-\xFF][\x80-\xFF]/.test(candidate)) score += 3;
-                        if (candidate.length > 0) score += 1;
-                        
-                        if (score > bestScore) {
-                            bestScore = score;
-                            bestMatch = candidate;
-                        }
-                    }
-                    
-                    return bestMatch;
-                } catch (e) {
-                    console.log('[DEBUG] 解码失败:', e.message);
-                    return path;
-                }
-            },
-            
-            renderCommunityFolderTree() {
-                const folderTree = document.getElementById('tableFolderTree');
-                if (this.communityPackages.length === 0) { 
-                    folderTree.innerHTML = '<div class="empty-state"><p>暂无小区数据包</p></div>'; 
-                    return; 
-                }
-                folderTree.innerHTML = '';
-                this.communityPackages.forEach(pkg => {
-                    const folderItem = document.createElement('div');
-                    folderItem.className = 'folder-item';
-                    folderItem.innerHTML = `
-                        <span class="folder-icon">�</span>
-                        <span class="folder-name">${pkg.communityName}</span>
-                        <span class="folder-count">${pkg.excelFiles.length}个Excel, ${pkg.environmentImages.length + pkg.removedEquipmentImages.length}张图片</span>
-                    `;
-                    folderTree.appendChild(folderItem);
-                });
-            },
-
-            isExcelFile(filename) {
-                const excelExtensions = ['.xlsx', '.xls'];
-                return excelExtensions.some(ext => filename.toLowerCase().endsWith(ext));
+                const totalImages = Object.values(this.imageFolders).reduce((sum, c) => {
+                    return sum + c.RemovedEquipment_images.length + c.Environment_images.length;
+                }, 0);
+                this.showToast(`成功解析 ${folderCount} 个小区，共 ${totalImages} 张图片！`);
             },
 
             extractPlaceholders(html) {
                 const placeholders = [];
-                const excelRegex = /\{\{excel:([^}]+)\}\}/g;
-                const textRegex = /\{\{([^@#][^}]+)\}\}/g;
+                const textRegex = /\{\{([^@][^}]+)\}\}/g;
                 const imageRegex = /\{\{@([^}]+)\}\}/g;
-                const tableRegex = /\{\{#([^}]+)\}\}/g;
                 let match;
-                
-                while ((match = excelRegex.exec(html)) !== null) {
-                    placeholders.push({ name: match[1].trim(), type: 'excel', fullMatch: match[0] });
-                }
-                
                 while ((match = textRegex.exec(html)) !== null) {
-                    const name = match[1].trim();
-                    if (name.startsWith('excel:')) {
-                        continue;
-                    }
-                    if (name.includes('附件') || name.includes('表格') || name.includes('表')) {
-                        placeholders.push({ name: name, type: 'excel', fullMatch: match[0] });
-                    } else {
-                        placeholders.push({ name: name, type: 'text', fullMatch: match[0] });
-                    }
+                    placeholders.push({ name: match[1].trim(), type: 'text', fullMatch: match[0] });
                 }
-                
                 while ((match = imageRegex.exec(html)) !== null) {
                     placeholders.push({ name: match[1].trim(), type: 'image', fullMatch: match[0] });
                 }
-                
-                while ((match = tableRegex.exec(html)) !== null) {
-                    placeholders.push({ name: match[1].trim(), type: 'table', fullMatch: match[0] });
-                }
-                
                 return placeholders;
             },
 
@@ -726,12 +346,8 @@
                 this.templatePlaceholders.forEach(p => {
                     if (p.type === 'text') {
                         processedHtml = processedHtml.replace(new RegExp(p.fullMatch.replace(/[{}]/g, '\\$&'), 'g'), `<span class="placeholder-tag">${p.fullMatch}</span>`);
-                    } else if (p.type === 'image') {
+                    } else {
                         processedHtml = processedHtml.replace(new RegExp(p.fullMatch.replace(/[{}]/g, '\\$&'), 'g'), `<span class="image-placeholder-tag">${p.fullMatch}</span>`);
-                    } else if (p.type === 'table') {
-                        processedHtml = processedHtml.replace(new RegExp(p.fullMatch.replace(/[{}]/g, '\\$&'), 'g'), `<span class="table-placeholder-tag">${p.fullMatch}</span>`);
-                    } else if (p.type === 'excel') {
-                        processedHtml = processedHtml.replace(new RegExp(p.fullMatch.replace(/[{}]/g, '\\$&'), 'g'), `<span class="excel-placeholder-tag">${p.fullMatch}</span>`);
                     }
                 });
                 previewContent.innerHTML = processedHtml;
@@ -749,34 +365,30 @@
                 mappingContent.classList.remove('hidden');
                 mappingTableBody.innerHTML = '';
                 this.templatePlaceholders.forEach(p => {
-                    let placeholderTagClass = 'placeholder-tag';
-                    let placeholderPrefix = '';
-                    let typeLabel = '📝 文本';
-                    
+                    let mappedColumn = null;
+                    let exampleValue = '-';
+
                     if (p.type === 'image') {
-                        placeholderTagClass = 'image-placeholder-tag';
-                        placeholderPrefix = '@';
-                        typeLabel = '🖼️ 图片';
-                    } else if (p.type === 'excel') {
-                        placeholderTagClass = 'excel-placeholder-tag';
-                        placeholderPrefix = 'excel:';
-                        typeLabel = '📊 Excel(OLE)';
-                    } else if (p.type === 'table') {
-                        placeholderTagClass = 'table-placeholder-tag';
-                        placeholderPrefix = '#';
-                        typeLabel = '📈 表格(OLE)';
+                        const subFolderMatch = ['RemovedEquipment_images', 'Environment_images'].includes(p.name);
+                        if (subFolderMatch) {
+                            mappedColumn = '（自动匹配小区文件夹）';
+                            exampleValue = `小区文件夹 → ${p.name}/`;
+                        }
                     }
-                    
-                    const isOleType = p.type === 'excel' || p.type === 'table';
-                    const mappedColumn = !isOleType ? this.excelHeaders.find(h => h.toLowerCase().replace(/[_\s]/g, '') === p.name.toLowerCase().replace(/[_\s]/g, '')) : null;
-                    const exampleValue = (!isOleType && mappedColumn && this.excelData.length > 0) ? this.excelData[0][mappedColumn] : '-';
-                    const mappedColumnDisplay = isOleType ? 'OLE嵌入' : (mappedColumn || '<span style="color: #ff4d4f;">未匹配</span>');
-                    
+
+                    if (!mappedColumn) {
+                        mappedColumn = this.excelHeaders.find(h => h.toLowerCase().replace(/[_\s]/g, '') === p.name.toLowerCase().replace(/[_\s]/g, ''));
+                        exampleValue = mappedColumn && this.excelData.length > 0 ? this.excelData[0][mappedColumn] : '-';
+                    }
+
                     const row = document.createElement('tr');
-                    row.innerHTML = `<td><span class="${placeholderTagClass}">{{${placeholderPrefix}${p.name}}}</span></td><td>${typeLabel}</td><td>${exampleValue !== '-' ? String(exampleValue).substring(0, 50) : '-'}</td><td>${mappedColumnDisplay}</td>`;
+                    row.innerHTML = `<td><span class="${p.type === 'image' ? 'image-placeholder-tag' : 'placeholder-tag'}">{{${p.type === 'image' ? '@' : ''}${p.name}}}</span></td><td>${p.type === 'image' ? '🖼️ 图片' : '📝 文本'}</td><td>${exampleValue !== '-' ? String(exampleValue).substring(0, 50) : '-'}</td><td>${mappedColumn || '<span style="color: #ff4d4f;">未匹配</span>'}</td>`;
                     mappingTableBody.appendChild(row);
                 });
-                const allMatched = this.templatePlaceholders.filter(p => p.type !== 'excel' && p.type !== 'table').every(p => this.excelHeaders.some(h => h.toLowerCase().replace(/[_\s]/g, '') === p.name.toLowerCase().replace(/[_\s]/g, '')));
+                const allMatched = this.templatePlaceholders.every(p => {
+                    if (p.type === 'image' && ['RemovedEquipment_images', 'Environment_images'].includes(p.name)) return true;
+                    return this.excelHeaders.some(h => h.toLowerCase().replace(/[_\s]/g, '') === p.name.toLowerCase().replace(/[_\s]/g, ''));
+                });
                 generateBtn.disabled = !allMatched || this.excelData.length === 0;
             },
 
@@ -784,30 +396,41 @@
                 const folderTree = document.getElementById('folderTree');
                 if (Object.keys(this.imageFolders).length === 0) { folderTree.innerHTML = '<div class="empty-state"><p>暂无图片文件夹</p></div>'; return; }
                 folderTree.innerHTML = '';
-                Object.entries(this.imageFolders).forEach(([folderName, files]) => {
-                    const folderItem = document.createElement('div');
-                    folderItem.className = 'folder-item';
-                    folderItem.innerHTML = `<span class="folder-icon">📁</span><span class="folder-name">${folderName}</span><span class="folder-count">${files.length} 张图片</span>`;
-                    folderTree.appendChild(folderItem);
+                Object.entries(this.imageFolders).forEach(([communityName, subFolders]) => {
+                    const communityDiv = document.createElement('div');
+                    communityDiv.style.cssText = 'margin-bottom: 12px;';
+                    communityDiv.innerHTML = `<div class="folder-item" style="font-weight:600;background-color:#e6f7ff;border-radius:4px;padding:8px 12px;"><span class="folder-icon">📁</span><span class="folder-name">${communityName}</span></div>`;
+
+                    Object.entries(subFolders).forEach(([subName, images]) => {
+                        if (images.length === 0) return;
+                        const subDiv = document.createElement('div');
+                        subDiv.className = 'folder-item';
+                        subDiv.style.cssText = 'padding-left: 32px;';
+                        subDiv.innerHTML = `<span class="folder-icon">📂</span><span class="folder-name">${subName}</span><span class="folder-count">${images.length} 张</span>`;
+                        communityDiv.appendChild(subDiv);
+                    });
+
+                    folderTree.appendChild(communityDiv);
                 });
             },
 
             updateStepStatus(step) {
-                for (let i = 1; i <= 4; i++) {
+                for (let i = 1; i <= 3; i++) {
                     const stepCard = document.getElementById(`step${i}`);
-                    if (stepCard) {
-                        stepCard.classList.remove('active', 'completed');
-                        if (i < step) stepCard.classList.add('completed');
-                        else if (i === step) stepCard.classList.add('active');
-                    }
+                    stepCard.classList.remove('active', 'completed');
+                    if (i < step) stepCard.classList.add('completed');
+                    else if (i === step) stepCard.classList.add('active');
                 }
             },
 
             updateStats() {
                 document.getElementById('templateStatus').textContent = this.templateFile ? this.templateFile.name.substring(0, 15) + '...' : '-';
                 document.getElementById('dataCount').textContent = this.excelData.length > 0 ? this.excelData.length + ' 条' : '-';
-                document.getElementById('imageFolders').textContent = Object.keys(this.imageFolders).length > 0 ? Object.keys(this.imageFolders).length + ' 个' : '-';
-                document.getElementById('tableFileStatus').textContent = this.communityPackages.length > 0 ? this.communityPackages.length + ' 个小区' : '-';
+                const folderCount = Object.keys(this.imageFolders).length;
+                const totalImages = Object.values(this.imageFolders).reduce((sum, c) => {
+                    return sum + (c.RemovedEquipment_images ? c.RemovedEquipment_images.length : 0) + (c.Environment_images ? c.Environment_images.length : 0);
+                }, 0);
+                document.getElementById('imageFolders').textContent = folderCount > 0 ? `${folderCount} 小区 / ${totalImages} 图` : '-';
             },
 
             showFileItem(listId, file) {
@@ -835,20 +458,7 @@
                 this.generatedReports = [];
 
                 const total = this.excelData.length;
-                
-                if (this.communityPackages.length > 0 && this.useBackendMode) {
-                    await this.generateReportsWithBackend(total, progressFill, progressText);
-                } else {
-                    await this.generateReportsLocally(total, progressFill, progressText);
-                }
-
-                downloadAllBtn.disabled = this.generatedReports.length === 0;
-                generateBtn.disabled = false;
-                this.renderDownloadLinks();
-            },
-            
-            async generateReportsLocally(total, progressFill, progressText) {
-                this.log('info', `开始生成 ${total} 份报告...(本地模式)`);
+                this.log('info', `开始生成 ${total} 份报告...`);
                 this.log('info', `可用图片文件夹: ${Object.keys(this.imageFolders).join(', ')}`);
 
                 for (let i = 0; i < total; i++) {
@@ -857,8 +467,8 @@
                     progressFill.style.width = `${progress}%`;
                     progressText.textContent = `正在生成第 ${i + 1} / ${total} 份报告...`;
 
-                    const villageName = this.getVillageName(data);
-                    this.log('info', `处理第 ${i + 1} 条数据: ${villageName}`);
+                    const villageName = data['CommunityName'] || this.getVillageName(data);
+                    this.log('info', `处理第 ${i + 1} 条数据: ${villageName}（CommunityName=${data['CommunityName'] || '无'}）`);
 
                     try {
                         const reportBlob = await this.generateSingleReport(data, i);
@@ -873,142 +483,9 @@
 
                 progressFill.style.width = '100%';
                 progressText.textContent = `完成！成功生成 ${this.generatedReports.length} 份报告`;
-            },
-            
-            async generateReportsWithBackend(total, progressFill, progressText) {
-                this.log('info', `开始生成 ${total} 份报告...(后端模式)`);
-                this.log('info', `可用小区数据包: ${this.communityPackages.length} 个`);
-
-                try {
-                    const communityZips = [];
-                    const excelFilesMap = {};
-                    
-                    for (const pkg of this.communityPackages) {
-                        const zipData = await this.rebuildCommunityZip(pkg);
-                        communityZips.push(zipData);
-                        
-                        if (pkg && pkg.name) {
-                            const villageName = pkg.name.replace('.zip', '');
-                            excelFilesMap[villageName] = pkg.excelFiles || {};
-                        }
-                    }
-
-                    for (let i = 0; i < total; i++) {
-                        const data = this.excelData[i];
-                        const villageName = this.getVillageName(data);
-                        const progress = ((i + 1) / total) * 100;
-                        progressFill.style.width = `${progress}%`;
-                        progressText.textContent = `正在生成第 ${i + 1} / ${total} 份报告...`;
-
-                        this.log('info', `处理第 ${i + 1} 条数据: ${villageName}`);
-
-                        try {
-                            const localReportBlob = await this.generateSingleReport(data, i);
-                            
-                            const reportBase64 = await this.fileToBase64FromBlob(localReportBlob);
-                            const reportText = atob(reportBase64);
-                            const hasExcelPlaceholders = reportText.includes('{{excel:');
-
-                            if (hasExcelPlaceholders && communityZips.length > 0) {
-                                this.log('info', `检测到Excel占位符，调用后端API...`);
-                                
-                                const requestData = {
-                                    template: reportBase64,
-                                    dataRows: [data],
-                                    communityZips: communityZips
-                                };
-
-                                const response = await fetch(`${this.backendUrl}/generate-reports-batch`, {
-                                    method: 'POST',
-                                    headers: {
-                                        'Content-Type': 'application/json'
-                                    },
-                                    body: JSON.stringify(requestData)
-                                });
-
-                                if (!response.ok) {
-                                    const errorData = await response.json();
-                                    throw new Error(errorData.error || '后端处理失败');
-                                }
-
-                                const result = await response.json();
-
-                                if (result.success && result.reports && result.reports.length > 0) {
-                                    const report = result.reports[0];
-                                    const reportBytes = atob(report.report);
-                                    const reportArray = new Uint8Array(reportBytes.length);
-                                    for (let j = 0; j < reportBytes.length; j++) {
-                                        reportArray[j] = reportBytes.charCodeAt(j);
-                                    }
-                                    const blob = new Blob([reportArray], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-                                    const fileName = `附件4.${villageName}退网方案.docx`;
-                                    this.generatedReports.push({ name: fileName, blob: blob, data: data });
-                                } else {
-                                    throw new Error('后端未返回报告数据');
-                                }
-                            } else {
-                                const fileName = `附件4.${villageName}退网方案.docx`;
-                                this.generatedReports.push({ name: fileName, blob: localReportBlob, data: data });
-                            }
-
-                            this.log('success', `✓ 第 ${i + 1} 份报告生成成功`);
-                        } catch (error) {
-                            this.log('error', `✗ 第 ${i + 1} 份报告生成失败: ${error.message}`);
-                        }
-                        
-                        await new Promise(resolve => setTimeout(resolve, 100));
-                    }
-
-                    progressFill.style.width = '100%';
-                    progressText.textContent = `完成！成功生成 ${this.generatedReports.length} 份报告`;
-                    
-                } catch (error) {
-                    this.log('error', `后端处理失败: ${error.message}`);
-                    this.log('info', '回退到本地模式...');
-                    await this.generateReportsLocally(total, progressFill, progressText);
-                }
-            },
-            
-            async fileToBase64FromBlob(blob) {
-                const arrayBuffer = await blob.arrayBuffer();
-                let binary = '';
-                const bytes = new Uint8Array(arrayBuffer);
-                for (let i = 0; i < bytes.length; i++) {
-                    binary += String.fromCharCode(bytes[i]);
-                }
-                return window.btoa(binary);
-            },
-            
-            async fileToBase64(file) {
-                const arrayBuffer = await file.arrayBuffer();
-                let binary = '';
-                const bytes = new Uint8Array(arrayBuffer);
-                for (let i = 0; i < bytes.length; i++) {
-                    binary += String.fromCharCode(bytes[i]);
-                }
-                return window.btoa(binary);
-            },
-            
-            async rebuildCommunityZip(pkg) {
-                const zip = new JSZip();
-                
-                const excelFolder = zip.folder('excel');
-                pkg.excelFiles.forEach(file => {
-                    excelFolder.file(file.name, file.base64, { base64: true });
-                });
-                
-                const envFolder = zip.folder('Environment_images');
-                pkg.environmentImages.forEach(file => {
-                    envFolder.file(file.name, file.base64, { base64: true });
-                });
-                
-                const equipFolder = zip.folder('RemovedEquipment_images');
-                pkg.removedEquipmentImages.forEach(file => {
-                    equipFolder.file(file.name, file.base64, { base64: true });
-                });
-                
-                const content = await zip.generateAsync({ type: 'base64' });
-                return content;
+                downloadAllBtn.disabled = this.generatedReports.length === 0;
+                generateBtn.disabled = false;
+                this.renderDownloadLinks();
             },
 
             async generateSingleReport(data, index) {
@@ -1021,7 +498,6 @@
 
                 const textPlaceholders = this.templatePlaceholders.filter(p => p.type === 'text');
                 const imagePlaceholders = this.templatePlaceholders.filter(p => p.type === 'image');
-                const excelPlaceholders = this.templatePlaceholders.filter(p => p.type === 'excel');
 
                 textPlaceholders.forEach(p => {
                     const placeholder = `{{${p.name}}}`;
@@ -1029,37 +505,52 @@
                     documentXml = documentXml.split(placeholder).join(value);
                 });
 
-                for (const p of imagePlaceholders) {
-                    const placeholder = `{{@${p.name}}}`;
-                    const folderNameFromData = data[p.name];
-                    
-                    let matchedFolder = null;
-                    if (folderNameFromData && this.imageFolders[folderNameFromData]) {
-                        matchedFolder = folderNameFromData;
-                    } else if (folderNameFromData) {
-                        const normalizedFolderName = folderNameFromData.trim().toLowerCase();
-                        for (const key of Object.keys(this.imageFolders)) {
-                            if (key.trim().toLowerCase() === normalizedFolderName) {
-                                matchedFolder = key;
-                                break;
-                            }
+                const communityName = data['CommunityName'] || this.getVillageName(data);
+                let communityFolder = null;
+
+                if (communityName && this.imageFolders[communityName]) {
+                    communityFolder = communityName;
+                } else if (communityName) {
+                    const normalizedName = communityName.trim().toLowerCase();
+                    for (const key of Object.keys(this.imageFolders)) {
+                        if (key.trim().toLowerCase() === normalizedName) {
+                            communityFolder = key;
+                            break;
                         }
                     }
+                }
 
-                    if (!matchedFolder) {
-                        this.log('warn', `未找到图片文件夹: ${folderNameFromData}`);
-                        documentXml = documentXml.split(placeholder).join(`[图片: ${folderNameFromData || '未找到'}]`);
+                if (communityFolder) {
+                    this.log('info', `小区 "${communityName}" 匹配到图片文件夹: ${communityFolder}`);
+                } else if (imagePlaceholders.length > 0 && Object.keys(this.imageFolders).length > 0) {
+                    this.log('warn', `未找到小区 "${communityName}" 的图片文件夹，可用: ${Object.keys(this.imageFolders).join(', ')}`);
+                }
+
+                for (const p of imagePlaceholders) {
+                    const placeholder = `{{@${p.name}}}`;
+                    const subFolderName = p.name;
+
+                    if (!communityFolder) {
+                        documentXml = documentXml.split(placeholder).join(`[图片: ${subFolderName} - 未匹配到小区文件夹]`);
                         continue;
                     }
 
-                    const images = this.imageFolders[matchedFolder];
-                    this.log('info', `找到文件夹 ${matchedFolder}，包含 ${images.length} 张图片`);
-                    
+                    const communityData = this.imageFolders[communityFolder];
+                    const images = communityData ? communityData[subFolderName] : null;
+
+                    if (!images || images.length === 0) {
+                        this.log('warn', `小区 "${communityFolder}" 下没有 ${subFolderName} 图片`);
+                        documentXml = documentXml.split(placeholder).join(`[图片: ${subFolderName}]`);
+                        continue;
+                    }
+
+                    this.log('info', `小区 "${communityFolder}" → ${subFolderName}: ${images.length} 张图片`);
+
                     let allImageXml = '';
 
                     for (let imgIdx = 0; imgIdx < images.length; imgIdx++) {
                         const image = images[imgIdx];
-                        const imageFileName = `image_${index}_${imgIdx}_${Date.now()}.${image.extension}`;
+                        const imageFileName = `image_${index}_${subFolderName}_${imgIdx}_${Date.now()}.${image.extension}`;
                         relIdCounter++;
                         const relId = `rId${relIdCounter}`;
 
@@ -1076,118 +567,10 @@
                     documentXml = documentXml.split(placeholder).join(allImageXml);
                 }
 
-                for (const p of excelPlaceholders) {
-                    const placeholder = p.fullMatch;
-                    let excelFileNameFromData = data[p.name];
-                    
-                    if (!excelFileNameFromData) {
-                        excelFileNameFromData = data[`excel:${p.name}`];
-                    }
-                    
-                    if (!excelFileNameFromData) {
-                        const matchedKey = Object.keys(data).find(key => 
-                            key.toLowerCase().replace(/[_\s]/g, '') === p.name.toLowerCase().replace(/[_\s]/g, '') ||
-                            key.toLowerCase().replace(/[_\s]/g, '') === `excel:${p.name}`.toLowerCase().replace(/[_\s]/g, '')
-                        );
-                        if (matchedKey) {
-                            excelFileNameFromData = data[matchedKey];
-                        }
-                    }
-                    
-                    if (!excelFileNameFromData) {
-                        this.log('warn', `未配置Excel文件名: ${p.name}`);
-                        documentXml = documentXml.split(placeholder).join(`[Excel文件: 未配置]`);
-                        continue;
-                    }
-                    
-                    let matchedExcel = null;
-                    let allTables = [];
-                    
-                    const communityName = data['CommunityName'] || data['communityName'] || data['小区名称'];
-                    if (communityName && this.communityPackages.length > 0) {
-                        const matchedCommunity = this.communityPackages.find(pkg => 
-                            pkg.communityName.includes(communityName) || 
-                            communityName.includes(pkg.communityName)
-                        );
-                        
-                        if (matchedCommunity) {
-                            allTables = matchedCommunity.excelFiles;
-                            this.log('info', `找到小区 ${communityName} 的数据包，包含 ${allTables.length} 个Excel文件`);
-                        }
-                    }
-                    
-                    this.log('info', `跳过Excel插入（由后端处理），占位符: ${placeholder}`);
-                }
-
-                this.log('info', `document.xml 长度: ${documentXml.length} 字符`);
-                
                 zip.file('word/document.xml', documentXml);
                 zip.file('word/_rels/document.xml.rels', relsXml);
-                
-                const blob = await zip.generateAsync({ type: 'blob' });
-                this.log('info', `ZIP 文件生成成功，大小: ${blob.size} 字节`);
-                return blob;
-            },
 
-            async excelToCsv(base64Data) {
-                const binary = atob(base64Data);
-                const arrayBuffer = new ArrayBuffer(binary.length);
-                const view = new Uint8Array(arrayBuffer);
-                for (let i = 0; i < binary.length; i++) {
-                    view[i] = binary.charCodeAt(i);
-                }
-                
-                const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-                const sheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[sheetName];
-                
-                let csv = XLSX.utils.sheet_to_csv(worksheet);
-                csv = csv.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                return csv;
-            },
-            
-            async callBackendGenerateReport(templateBase64, excelFiles, placeholderMappings) {
-                try {
-                    this.log('info', `调用后端API生成报告...`);
-                    
-                    const response = await fetch(`${this.backendUrl}/generate-report`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            template: templateBase64,
-                            excelFiles: excelFiles,
-                            placeholderMappings: placeholderMappings
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(errorData.error || '后端处理失败');
-                    }
-                    
-                    const result = await response.json();
-                    
-                    if (result.success && result.report) {
-                        const reportBytes = atob(result.report);
-                        const reportArray = new Uint8Array(reportBytes.length);
-                        for (let i = 0; i < reportBytes.length; i++) {
-                            reportArray[i] = reportBytes.charCodeAt(i);
-                        }
-                        return new Blob([reportArray], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-                    } else {
-                        throw new Error('后端返回数据格式错误');
-                    }
-                } catch (error) {
-                    this.log('error', `后端API调用失败: ${error.message}`);
-                    throw error;
-                }
-            },
-            
-            createOleObjectXml(relId, fileName) {
-                const shapeId = relId.replace('rId', '');
-                return `<w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:r><w:object w:dxaOrig="21600" w:dyaOrig="21600"><v:shape id="_x0000_s${shapeId}" type="#_x0000_t75" style="width:14400px;height:14400px" o:ole="true"><v:imagedata r:id="${relId}" o:title="${fileName}"/><o:OLEObject Type="Embed" ProgID="Excel.Sheet.12" ShapeID="_x0000_s${shapeId}" DrawAspect="Content" ObjectID="_x0000_o${shapeId}"/></v:shape></w:object></w:r></w:p>`;
+                return await zip.generateAsync({ type: 'blob' });
             },
 
             createDrawingXml(relId, imageFileName, extension) {
@@ -1263,7 +646,7 @@
             },
 
             getVillageName(data) {
-                const possibleNames = ['小区名称', 'village_name', 'village', 'community_name', 'community', '小区', 'name', '项目名称', 'project_name', 'project'];
+                const possibleNames = ['CommunityName', '小区名称', 'village_name', 'village', 'community_name', 'community', '小区', 'name', '项目名称', 'project_name', 'project'];
                 for (const name of possibleNames) {
                     const lowerName = name.toLowerCase();
                     const matchedKey = Object.keys(data).find(key => key.toLowerCase().replace(/[_\s]/g, '') === lowerName.replace(/[_\s]/g, ''));
@@ -1276,75 +659,6 @@
             isImageFile(filename) {
                 const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'];
                 return imageExtensions.some(ext => filename.toLowerCase().endsWith(ext));
-            },
-            
-            isGarbageChars(str) {
-                const garbagePattern = /[\x80-\xFF][\x80-\xFF]/;
-                const hasUnderscores = str.includes('_') && str.split('_').length > 3;
-                return garbagePattern.test(str) || hasUnderscores;
-            },
-            
-            decodeGBK(encodedStr) {
-                try {
-                    const encoder = new TextEncoder('iso-8859-1');
-                    const bytes = encoder.encode(encodedStr);
-                    
-                    const decoderGBK = new TextDecoder('GBK');
-                    const decoderGB2312 = new TextDecoder('GB2312');
-                    const decoderUTF8 = new TextDecoder('UTF-8', {fatal: false});
-                    const decoderBig5 = new TextDecoder('Big5');
-                    
-                    const decodedGBK = decoderGBK.decode(bytes);
-                    const decodedGB2312 = decoderGB2312.decode(bytes);
-                    const decodedUTF8 = decoderUTF8.decode(bytes);
-                    const decodedBig5 = decoderBig5.decode(bytes);
-                    
-                    console.log('[DEBUG] 原始字节:', Array.from(bytes).slice(0, 20));
-                    console.log('[DEBUG] GBK解码:', decodedGBK);
-                    console.log('[DEBUG] GB2312解码:', decodedGB2312);
-                    console.log('[DEBUG] UTF-8解码:', decodedUTF8);
-                    console.log('[DEBUG] Big5解码:', decodedBig5);
-                    
-                    const allDecodings = [decodedGBK, decodedGB2312, decodedUTF8, decodedBig5];
-                    const validDecoding = allDecodings.find(d => 
-                        d.includes('小区') || d.includes('报告') || d.includes('表') || 
-                        d.includes('评估') || d.includes('单元') || d.includes('对应')
-                    );
-                    
-                    if (validDecoding) {
-                        console.log('[DEBUG] 找到有效解码:', validDecoding);
-                        return validDecoding;
-                    }
-                    
-                    const tryUTF8toGBK = this.tryUTF8toGBK(encodedStr);
-                    if (tryUTF8toGBK && (tryUTF8toGBK.includes('小区') || tryUTF8toGBK.includes('报告') || tryUTF8toGBK.includes('表'))) {
-                        console.log('[DEBUG] UTF8转GBK成功:', tryUTF8toGBK);
-                        return tryUTF8toGBK;
-                    }
-                    
-                    return encodedStr;
-                } catch (e) {
-                    console.log('[DEBUG] 解码失败:', e);
-                    return encodedStr;
-                }
-            },
-            
-            tryUTF8toGBK(str) {
-                try {
-                    const utf8Bytes = new TextEncoder('UTF-8').encode(str);
-                    const gbkDecoder = new TextDecoder('GBK', {fatal: false});
-                    return gbkDecoder.decode(utf8Bytes);
-                } catch (e) {
-                    return null;
-                }
-            },
-            
-            tryDecodeFileName(encodedStr) {
-                const decoded = this.decodeGBK(encodedStr);
-                if (decoded.includes('小区') || decoded.includes('报告') || decoded.includes('表') || decoded.includes('xls')) {
-                    return decoded;
-                }
-                return encodedStr;
             }
         };
 
